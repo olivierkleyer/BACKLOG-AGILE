@@ -89,6 +89,7 @@ class Projet(db.Model):
     duree_semaines = db.Column(db.Integer, default=2)
     date_debut = db.Column(db.String(10), default='')     # AAAA-MM-JJ
     dod_commune_json = db.Column(db.Text, default='[]')
+    dod_bloquante = db.Column(db.Boolean, default=True)    # une story ne passe en Fait que si sa DoD est complete
 
     @property
     def dod_commune(self): return lire_json(self.dod_commune_json, [])
@@ -98,6 +99,7 @@ class Sprint(db.Model):
     numero = db.Column(db.Integer, unique=True, nullable=False)
     objectif = db.Column(db.Text, default='')
     capacite = db.Column(db.Float, default=0)             # en points
+    jour_courant = db.Column(db.Integer, default=1)       # jour simule du sprint (burndown)
 
 class Release(db.Model):
     """Une release regroupe des sprints consecutifs : R1 = sprints 1 a n1, R2 = n1+1 a n1+n2..."""
@@ -124,6 +126,7 @@ class Story(db.Model):
     pour = db.Column(db.Text, default='')
     criteres = db.Column(db.Text, default='')              # criteres d'acceptation
     statut = db.Column(db.String(20), default='A faire')
+    fait_jour = db.Column(db.Integer, nullable=True)       # jour du sprint ou la story est passee en Fait
     responsable = db.Column(db.String(40), default='')
     priorite = db.Column(db.String(5), default='P2')
     points = db.Column(db.Float, default=0)
@@ -159,6 +162,7 @@ class Tache(db.Model):
     titre = db.Column(db.String(200), nullable=False)
     heures = db.Column(db.Float, default=0)
     statut = db.Column(db.String(20), default='A faire')
+    fait_jour = db.Column(db.Integer, nullable=True)
     responsable = db.Column(db.String(40), default='')
 
 # ---------------------------------------------------------------- Initialisation
@@ -299,6 +303,56 @@ def calendrier_releases(p):
 def release_du_sprint(cal, n):
     return next((c for c in cal if c['s1'] <= n <= c['s2']), None)
 
+def jours_sprint(p):
+    return p.duree_semaines * 5   # jours ouvres
+
+def jour_du_sprint(n):
+    sp = Sprint.query.filter_by(numero=n).first() if n else None
+    return sp.jour_courant if sp else None
+
+def changer_statut_story(s, nouveau, p):
+    """Applique la regle de la DoD bloquante. Renvoie un message d'erreur ou None."""
+    nouveau = statut_ok(nouveau)
+    if nouveau == 'Fait' and s.statut != 'Fait' and p.dod_bloquante:
+        fait, total = s.dod_etat(p.dod_commune)
+        if fait < total:
+            return 'Impossible de passer « {} » en Fait : Définition du Fini incomplète ({}/{}).'.format(s.titre, fait, total)
+    if nouveau == 'Fait' and s.statut != 'Fait':
+        s.fait_jour = jour_du_sprint(s.sprint)
+        for t in s.taches:            # une story finie solde ses taches restantes
+            if t.statut != 'Fait':
+                t.statut = 'Fait'; t.fait_jour = s.fait_jour
+    elif nouveau != 'Fait':
+        s.fait_jour = None
+    s.statut = nouveau
+    return None
+
+def changer_statut_tache(t, nouveau):
+    nouveau = statut_ok(nouveau)
+    if nouveau == 'Fait' and t.statut != 'Fait':
+        t.fait_jour = jour_du_sprint(t.story.sprint)
+    elif nouveau != 'Fait':
+        t.fait_jour = None
+    t.statut = nouveau
+
+def burndown(p, n):
+    """Reste a faire en fin de chaque jour simule du sprint, en points (stories) et en heures (taches)."""
+    sp = Sprint.query.filter_by(numero=n).first()
+    d = jours_sprint(p)
+    jour = min(max(sp.jour_courant or 1, 1), d) if sp else 1
+    stories = Story.query.filter_by(sprint=n).all()
+    taches = [t for s in stories for t in s.taches]
+    def serie(items, poids):
+        total = sum(poids(x) for x in items)
+        reel = []
+        for j in range(0, jour + 1):
+            fait = sum(poids(x) for x in items if x.statut == 'Fait' and j > 0 and (x.fait_jour or 1) <= j)
+            reel.append(round(total - fait, 1))
+        return {'total': round(total, 1), 'reel': reel}
+    return {'jours': d, 'jour': jour,
+            'points': serie(stories, lambda x: x.points or 0),
+            'heures': serie(taches, lambda x: x.heures or 0)}
+
 def responsables_connus():
     noms = set()
     for s in Story.query.all():
@@ -417,10 +471,12 @@ def story(sid):
             if fm.get('priorite') in PRIORITES: s.priorite = fm.get('priorite')
             fid = fm.get('feature_id', type=int)
             if fid and db.session.get(Feature, fid): s.feature_id = fid
-        s.statut = statut_ok(fm.get('statut'))
         s.responsable = fm.get('responsable', '').strip().upper()[:40]
         s.points = nombre(fm.get('points'))
+        ancien_sprint = s.sprint
         s.sprint = borne(fm.get('sprint'), 0, p.nb_sprints, 0)
+        if s.statut == 'Fait' and s.sprint != ancien_sprint:
+            s.fait_jour = jour_du_sprint(s.sprint)
         # DoD commune : cases cochees
         s.dod_commune_ok_json = json.dumps([l for i, l in enumerate(p.dod_commune) if fm.get('dodc_{}'.format(i))])
         # DoD specifique : libelles + cases
@@ -432,10 +488,13 @@ def story(sid):
         nouveau = fm.get('dod_nouveau', '').strip()
         if nouveau: dod.append({'label': nouveau[:200], 'ok': False})
         s.dod_json = json.dumps(dod)
+        erreur = changer_statut_story(s, fm.get('statut'), p)
         s.updated_at = datetime.utcnow()
         db.session.commit()
         fait, total = s.dod_etat(p.dod_commune)
-        if s.statut == 'Fait' and fait < total:
+        if erreur:
+            flash(erreur + ' Les autres modifications sont enregistrées.', 'error')
+        elif s.statut == 'Fait' and fait < total:
             flash('Story enregistrée en « Fait » alors que la Définition du Fini n\'est pas complète ({}/{})'.format(fait, total), 'error')
         else:
             flash('Story enregistrée', 'success')
@@ -481,7 +540,7 @@ def tache_modifier(tid):
         return redirect(url_for('story', sid=sid) + '#taches')
     t.titre = (request.form.get('titre', '').strip() or t.titre)[:200]
     t.heures = nombre(request.form.get('heures'))
-    t.statut = statut_ok(request.form.get('statut'))
+    changer_statut_tache(t, request.form.get('statut'))
     t.responsable = request.form.get('responsable', '').strip().upper()[:40]
     db.session.commit()
     return redirect(url_for('story', sid=t.story_id) + '#taches')
@@ -501,6 +560,7 @@ def kanban():
     fait = sum(s.points or 0 for s in stories if s.statut == 'Fait')
     debut, fin = dates_sprint(p, n)
     return render_template('kanban.html', n=n, sp=sp, colonnes=colonnes, engage=engage, fait=fait,
+                           bd=burndown(p, n), dod_bloquante=p.dod_bloquante,
                            debut=debut, fin=fin, dod_commune=p.dod_commune,
                            sprints=resume_sprints(p), rel=release_du_sprint(calendrier_releases(p), n),
                            non_planifiees=Story.query.filter_by(sprint=0).count())
@@ -509,18 +569,33 @@ def kanban():
 @connecte
 def api_statut(sid):
     s = db.get_or_404(Story, sid)
+    p = get_projet()
     d = request.get_json(silent=True) or {}
-    s.statut = statut_ok(d.get('statut'))
+    erreur = changer_statut_story(s, d.get('statut'), p)
+    if erreur:
+        return jsonify({'ok': False, 'erreur': erreur}), 409
     s.updated_at = datetime.utcnow()
     db.session.commit()
-    fait, total = s.dod_etat(get_projet().dod_commune)
-    return jsonify({'ok': True, 'statut': s.statut, 'dod_fait': fait, 'dod_total': total})
+    fait, total = s.dod_etat(p.dod_commune)
+    return jsonify({'ok': True, 'statut': s.statut, 'dod_fait': fait, 'dod_total': total,
+                    'burndown': burndown(p, s.sprint) if s.sprint else None})
 
 @app.route('/api/kanban/<int:n>')
 @connecte
 def api_kanban(n):
     """Etat du sprint pour le rafraichissement automatique du tableau"""
-    return jsonify({str(s.id): s.statut for s in Story.query.filter_by(sprint=n).all()})
+    return jsonify({'statuts': {str(s.id): s.statut for s in Story.query.filter_by(sprint=n).all()},
+                    'jour': jour_du_sprint(n)})
+
+@app.route('/sprint/<int:n>/jour', methods=['POST'])
+@po_requis
+def sprint_jour(n):
+    p = get_projet()
+    sp = Sprint.query.filter_by(numero=n).first_or_404()
+    sens = 1 if request.form.get('sens') == '+' else -1
+    sp.jour_courant = min(max((sp.jour_courant or 1) + sens, 1), jours_sprint(p))
+    db.session.commit()
+    return redirect(url_for('kanban', sprint=n))
 
 # ---------------------------------------------------------------- Sprints & parametres
 @app.route('/sprints', methods=['GET', 'POST'])
@@ -622,6 +697,7 @@ def parametres():
         p.vision = fm.get('vision', '').strip()
         dod = [l.strip()[:200] for l in fm.get('dod_commune', '').splitlines() if l.strip()]
         p.dod_commune_json = json.dumps(dod)
+        p.dod_bloquante = bool(fm.get('dod_bloquante'))
         db.session.commit()
         flash('Paramètres enregistrés', 'success')
         return redirect(url_for('parametres'))
@@ -662,10 +738,49 @@ def reset_all():
         flash('Tapez VIDER pour confirmer la réinitialisation', 'error')
         return redirect(url_for('admin_users'))
     Tache.query.delete(); Story.query.delete(); Feature.query.delete(); Release.query.delete()
-    for s in Sprint.query.all(): s.objectif = ''; s.capacite = 0
+    for s in Sprint.query.all(): s.objectif = ''; s.capacite = 0; s.jour_courant = 1
     db.session.commit()
     flash('Backlog vidé : releases, features, stories et tâches supprimées', 'success')
     return redirect(url_for('admin_users'))
+
+@app.route('/admin/exemple', methods=['POST'])
+@po_requis
+def charger_exemple():
+    """Remplace le backlog par le cas ROBO AGRI (voir exemple.py)."""
+    import exemple as ex
+    if request.form.get('confirmation', '').strip().upper() != 'EXEMPLE':
+        flash("Tapez EXEMPLE pour confirmer le chargement de l'exemple", 'error')
+        return redirect(url_for('admin_users'))
+    Tache.query.delete(); Story.query.delete(); Feature.query.delete(); Release.query.delete()
+    p = get_projet()
+    p.nom = ex.PRODUIT['nom']; p.vision = ex.PRODUIT['vision']
+    p.nb_sprints = ex.PRODUIT['nb_sprints']; p.duree_semaines = ex.PRODUIT['duree_semaines']
+    lundi = date.today() - timedelta(days=date.today().weekday())
+    p.date_debut = lundi.isoformat()
+    p.dod_commune_json = json.dumps(ex.DOD_COMMUNE)
+    db.session.commit()
+    synchroniser_sprints(p.nb_sprints)
+    for sp in Sprint.query.all():
+        cfg = ex.SPRINTS.get(sp.numero, {})
+        sp.objectif = cfg.get('objectif', ''); sp.capacite = cfg.get('capacite', 0); sp.jour_courant = 1
+    releases = []
+    for i, r in enumerate(ex.RELEASES):
+        rel = Release(nom=r['nom'], nb_sprints=r['nb_sprints'], objectif=r['objectif'], ordre=i)
+        db.session.add(rel); releases.append(rel)
+    db.session.flush()
+    for i, f in enumerate(ex.FEATURES):
+        feat = Feature(nom=f['nom'], release_id=releases[f['release']].id, ordre=i)
+        db.session.add(feat); db.session.flush()
+        for k, (titre, qui, besoin, pour, crit, prio, pts, spr, dod, taches) in enumerate(f['stories']):
+            st = Story(feature_id=feat.id, titre=titre, en_tant_que=qui, besoin=besoin, pour=pour, criteres=crit,
+                       priorite=prio, points=pts, sprint=spr, ordre=k,
+                       dod_json=json.dumps([{'label': l, 'ok': False} for l in dod]))
+            db.session.add(st); db.session.flush()
+            for t, h in taches:
+                db.session.add(Tache(story_id=st.id, titre=t, heures=h))
+    db.session.commit()
+    flash('Exemple ROBO AGRI chargé : sprint 1 prêt à démarrer, le reste du backlog est à estimer et à planifier.', 'success')
+    return redirect(url_for('backlog'))
 
 if __name__ == '__main__':
     app.run(debug=True, port=int(os.environ.get('PORT', 5000)))

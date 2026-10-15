@@ -33,6 +33,27 @@
 .dod-ko{color:var(--amber);font-weight:700}
 .dod-ok{color:var(--green);font-weight:700}
 .vide-col{text-align:center;font-size:12px;color:var(--gray-500);padding:20px 0}
+.jour{display:flex;align-items:center;gap:10px}
+.jour form{display:inline}
+.jour button{background:var(--gray-100);border:none;border-radius:8px;width:32px;height:32px;cursor:pointer;font-size:16px;color:var(--gray-700)}
+.jour button:hover{background:var(--blue-light);color:var(--blue)}
+.jour button:disabled{opacity:.35;cursor:default}
+/* Burndown */
+.bd-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.bd-head .card-title{margin:0}
+.seg{display:inline-flex;background:var(--gray-100);border-radius:8px;padding:3px}
+.seg button{border:none;background:none;padding:5px 12px;border-radius:6px;font:600 12px 'DM Sans',sans-serif;color:var(--gray-500);cursor:pointer}
+.seg button.on{background:white;color:var(--navy);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--gray-700);align-items:center}
+.legend i{display:inline-block;width:18px;height:0;border-top:2px solid;vertical-align:middle;margin-right:6px}
+.bd-wrap{position:relative}
+#bd svg{width:100%;height:auto;display:block}
+#bd .grid line{stroke:var(--gray-200);stroke-width:1}
+#bd .axis text{fill:var(--gray-500);font:11px 'DM Sans',sans-serif}
+#bd .hit{fill:transparent;cursor:crosshair}
+.bd-tip{position:absolute;pointer-events:none;background:var(--gray-900);color:white;font-size:12px;padding:7px 10px;border-radius:8px;white-space:nowrap;transform:translate(-50%,-110%);display:none;line-height:1.45}
+.bd-tip b{font-family:'DM Mono',monospace}
+.bd-note{font-size:12px;color:var(--gray-500);margin-top:8px}
 @media(max-width:900px){.board{grid-template-columns:1fr}.col{min-height:90px}.sprint-head{grid-template-columns:1fr 1fr}}
 </style>
 {% endblock %}
@@ -52,8 +73,13 @@
     {% if sp.capacite %}<div class="progress {% if engage > sp.capacite %}over{% endif %}" style="margin-top:8px"><span style="width:{{ [100, (100*engage/sp.capacite)|round|int]|min }}%"></span></div>{% endif %}</div>
   <div class="stat-card"><div class="stat-label">Points terminés</div><div class="stat-value" id="pts-fait">{{ fait|fmt }}</div>
     <div class="stat-sub">{% if engage %}{{ (100*fait/engage)|round|int }} % de l'engagement{% else %}—{% endif %}</div></div>
-  <div class="stat-card"><div class="stat-label">Backlog non planifié</div><div class="stat-value">{{ non_planifiees }}</div>
-    <div class="stat-sub"><a href="{{ url_for('sprints') }}">Planifier des stories</a></div></div>
+  <div class="stat-card"><div class="stat-label">Jour du sprint (simulé)</div>
+    <div class="jour">
+      {% if est_po %}<form method="post" action="{{ url_for('sprint_jour', n=n) }}"><input type="hidden" name="sens" value="-"><button title="Jour précédent" {% if bd.jour<=1 %}disabled{% endif %}>&#8249;</button></form>{% endif %}
+      <div class="stat-value" id="jour-val">J{{ bd.jour }}<span style="font-size:14px;color:var(--gray-500)"> / {{ bd.jours }}</span></div>
+      {% if est_po %}<form method="post" action="{{ url_for('sprint_jour', n=n) }}"><input type="hidden" name="sens" value="+"><button title="Jour suivant (daily scrum)" {% if bd.jour>=bd.jours %}disabled{% endif %}>&#8250;</button></form>{% endif %}
+    </div>
+    <div class="stat-sub">{% if est_po %}› après chaque daily scrum{% else %}avancé par le PO{% endif %}</div></div>
 </div>
 
 <div class="board">
@@ -82,6 +108,15 @@
   </div>
   {% endfor %}
 </div>
+<div class="card" style="margin-top:20px">
+  <div class="bd-head">
+    <div class="card-title">Burndown du sprint {{ n }}</div>
+    <div class="legend"><span><i style="border-color:#2563eb"></i>Reste à faire</span><span><i style="border-color:#94a3b8;border-top-style:dashed"></i>Idéal</span></div>
+    <div class="seg" role="tablist"><button type="button" class="on" data-u="points">Points (stories)</button><button type="button" data-u="heures">Heures (tâches)</button></div>
+  </div>
+  <div class="bd-wrap"><div id="bd"></div><div class="bd-tip" id="bd-tip"></div></div>
+  <div class="bd-note">En points, une story ne compte qu'une fois « Fait ». En heures, chaque tâche terminée fait baisser la courbe (passer une story en « Fait » solde ses tâches restantes). {% if dod_bloquante %}La DoD est bloquante : une story ne passe en « Fait » que si tous ses critères sont cochés.{% endif %}</div>
+</div>
 {% if not (colonnes.values()|map('length')|sum) %}
 <p class="muted small" style="margin-top:14px">Aucune story dans ce sprint. Affectez des stories au sprint {{ n }} depuis la <a href="{{ url_for('sprints') }}">planification</a> ou depuis la fiche story.</p>
 {% endif %}
@@ -89,7 +124,60 @@
 {% block scripts %}
 <script>
 var STATUTS = {{ STATUTS|tojson }};
+var BLOQUANTE = {{ 'true' if dod_bloquante else 'false' }};
+var BD = {{ bd|tojson }}, UNITE = 'points', JOUR = {{ bd.jour }};
 var drag = null, enCours = false;
+
+function dessinerBurndown(){
+  var d = BD[UNITE], N = BD.jours, W = 760, H = 220, m = {l:40, r:16, t:14, b:30};
+  var iw = W-m.l-m.r, ih = H-m.t-m.b;
+  var max = Math.max(d.total, 1), pas = max <= 10 ? 2 : max <= 25 ? 5 : max <= 60 ? 10 : max <= 150 ? 25 : 50;
+  max = Math.ceil(max/pas)*pas;
+  var x = function(j){ return m.l + iw*j/N; }, y = function(v){ return m.t + ih*(1 - v/max); };
+  var u = UNITE === 'points' ? 'pts' : 'h', h = '';
+  var nf = function(v){ return v.toLocaleString('fr-FR', {maximumFractionDigits: 1}); };
+  h += '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Burndown du sprint">';
+  h += '<g class="grid">'; for (var v=0; v<=max; v+=pas) h += '<line x1="'+m.l+'" x2="'+(W-m.r)+'" y1="'+y(v)+'" y2="'+y(v)+'"/>'; h += '</g>';
+  h += '<g class="axis">';
+  for (v=0; v<=max; v+=pas) h += '<text x="'+(m.l-8)+'" y="'+(y(v)+4)+'" text-anchor="end">'+v+'</text>';
+  var saut = N > 20 ? 5 : N > 10 ? 2 : 1;
+  for (var j=0; j<=N; j+=saut) h += '<text x="'+x(j)+'" y="'+(H-8)+'" text-anchor="middle">J'+j+'</text>';
+  h += '</g>';
+  // ideal
+  h += '<line x1="'+x(0)+'" y1="'+y(d.total)+'" x2="'+x(N)+'" y2="'+y(0)+'" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 5"/>';
+  // jour courant
+  h += '<line x1="'+x(BD.jour)+'" x2="'+x(BD.jour)+'" y1="'+m.t+'" y2="'+(m.t+ih)+'" stroke="#cbd5e1" stroke-width="1"/>';
+  // reel
+  var pts = d.reel.map(function(v,i){ return x(i)+','+y(v); }).join(' ');
+  if (d.total > 0) {
+    h += '<polyline points="'+pts+'" fill="none" stroke="#2563eb" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>';
+    d.reel.forEach(function(v,i){ h += '<circle cx="'+x(i)+'" cy="'+y(v)+'" r="'+(i===d.reel.length-1?5:3.5)+'" fill="#2563eb" stroke="white" stroke-width="2"/>'; });
+  }
+  h += '<line id="bd-cross" y1="'+m.t+'" y2="'+(m.t+ih)+'" stroke="#334155" stroke-width="1" style="display:none"/>';
+  for (j=0; j<=N; j++) h += '<rect class="hit" data-j="'+j+'" x="'+(x(j)-iw/N/2)+'" y="'+m.t+'" width="'+(iw/N)+'" height="'+ih+'"/>';
+  h += '</svg>';
+  if (d.total === 0) h += '<div class="bd-note">Rien à brûler en '+(UNITE==='points'?'points : estimez les stories du sprint.':'heures : ajoutez des tâches chiffrées aux stories.')+'</div>';
+  var el = document.getElementById('bd'); el.innerHTML = h;
+  var tip = document.getElementById('bd-tip'), cross = document.getElementById('bd-cross'), svg = el.querySelector('svg');
+  el.querySelectorAll('.hit').forEach(function(r){
+    r.addEventListener('mouseenter', function(){
+      var j = +r.dataset.j, ideal = Math.round(d.total*(1-j/N)*10)/10;
+      var reste = j < d.reel.length ? d.reel[j] : null;
+      cross.setAttribute('x1', x(j)); cross.setAttribute('x2', x(j)); cross.style.display = '';
+      tip.innerHTML = 'Jour '+j+(j===BD.jour?' (aujourd\'hui)':'')+'<br>Reste à faire : <b>'+(reste===null?'—':nf(reste)+' '+u)+'</b><br>Idéal : <b>'+nf(ideal)+' '+u+'</b>';
+      var k = svg.getBoundingClientRect().width / W;
+      tip.style.left = (x(j)*k)+'px'; tip.style.top = (y(reste===null?ideal:reste)*k)+'px'; tip.style.display = 'block';
+    });
+  });
+  svg.addEventListener('mouseleave', function(){ tip.style.display='none'; cross.style.display='none'; });
+}
+document.querySelectorAll('.seg button').forEach(function(b){
+  b.addEventListener('click', function(){
+    document.querySelectorAll('.seg button').forEach(function(o){ o.classList.toggle('on', o===b); });
+    UNITE = b.dataset.u; dessinerBurndown();
+  });
+});
+dessinerBurndown();
 
 function majColonnes(){
   document.querySelectorAll('.col').forEach(function(c){
@@ -107,13 +195,18 @@ function majColonnes(){
 }
 
 function deplacer(card, statut){
-  if (statut === 'Fait' && card.dataset.dodok !== '1' &&
-      !confirm('La Définition du Fini de cette story n\'est pas complète (' + card.dataset.dod + ').\nLa passer quand même en « Fait » ?')) return;
+  var pasFini = statut === 'Fait' && card.dataset.dodok !== '1';
+  if (pasFini && BLOQUANTE) {
+    alert('Définition du Fini incomplète (' + card.dataset.dod + ').\nCochez tous les critères sur la fiche story avant de passer cette story en « Fait ».');
+    return;
+  }
+  if (pasFini && !confirm('La Définition du Fini de cette story n\'est pas complète (' + card.dataset.dod + ').\nLa passer quand même en « Fait » ?')) return;
   var col = document.querySelector('.col[data-statut="' + statut + '"]');
   col.appendChild(card); majColonnes(); enCours = true;
   fetch('/api/story/' + card.dataset.id + '/statut', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({statut: statut})})
-    .then(function(r){ if(!r.ok) throw r; return r.json(); })
-    .catch(function(){ alert('Enregistrement impossible, la page va être rechargée.'); location.reload(); })
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw j; return j; }); })
+    .then(function(j){ if (j.burndown) { BD = j.burndown; dessinerBurndown(); } })
+    .catch(function(e){ alert((e && e.erreur) || 'Enregistrement impossible, la page va être rechargée.'); location.reload(); })
     .finally(function(){ enCours = false; });
 }
 
@@ -139,8 +232,9 @@ document.querySelectorAll('.col').forEach(function(c){
 // Rafraichissement : si un autre membre de l'equipe a deplace une carte, on recharge
 setInterval(function(){
   if (drag || enCours || document.hidden) return;
-  fetch('/api/kanban/{{ n }}').then(function(r){ return r.json(); }).then(function(etat){
-    var local = {};
+  fetch('/api/kanban/{{ n }}').then(function(r){ return r.json(); }).then(function(rep){
+    if (rep.jour !== JOUR) return location.reload();
+    var etat = rep.statuts, local = {};
     document.querySelectorAll('.kcard').forEach(function(k){ local[k.dataset.id] = k.closest('.col').dataset.statut; });
     if (JSON.stringify(Object.keys(etat).sort()) !== JSON.stringify(Object.keys(local).sort())) return location.reload();
     for (var id in etat) if (etat[id] !== local[id]) return location.reload();

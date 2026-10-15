@@ -19,6 +19,15 @@
     </tbody>
   </table>
 </div>
+<div class="card" style="border-color:#93c5fd">
+  <div class="card-title" style="color:var(--blue)">Charger l'exemple ROBO AGRI</div>
+  <p class="small muted" style="margin-bottom:12px">Remplace le backlog actuel par le cas du robot vendangeur autonome : 2 releases, 4 features, 13 stories rédigées.
+    Le sprint 1 est planifié, estimé et découpé en tâches (prêt pour le Kanban et le burndown) ; le reste est à estimer et à planifier par les participants.
+    Le calendrier démarre le lundi de cette semaine.</p>
+  <form method="post" action="{{ url_for('charger_exemple') }}" style="display:flex;gap:8px;max-width:420px" onsubmit="return confirm('Remplacer tout le backlog par l\'exemple ROBO AGRI ?')">
+    <input type="text" name="confirmation" placeholder="Tapez EXEMPLE" required>
+    <button class="btn btn-primary btn-sm">Charger</button></form>
+</div>
 <div class="grid2">
   <div class="card">
     <div class="card-title">Mot de passe commun de l'équipe</div>

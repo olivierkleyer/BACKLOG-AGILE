@@ -8,6 +8,7 @@ Application web issue du modèle Excel `backlog_exemple.xlsx` : product backlog
 ```
 backlog_app/
 ├── app.py              ← application Flask
+├── exemple.py          ← données de l'exemple ROBO AGRI
 ├── requirements.txt
 ├── Procfile
 └── templates/
@@ -57,7 +58,9 @@ python app.py        # http://localhost:5000
 ## Règles de gestion
 
 - Estimation des stories en **points**, des tâches en **heures**.
-- Une story passée en « Fait » avec une DoD incomplète est acceptée mais signalée (alerte sur la fiche, confirmation sur le Kanban).
+- DoD bloquante (réglable dans *Produit & DoD*) : une story ne passe en « Fait » que si tous ses critères sont cochés. Désactivée, l'appli se contente d'un avertissement.
+- Burndown du sprint (page Kanban), en points ou en heures, sur des **jours simulés** : le PO avance le jour (J1, J2…) après chaque daily scrum, ce qui permet de jouer un sprint de 2 semaines en une heure.
+- Exemple ROBO AGRI (*Utilisateurs → Charger l'exemple*) : remplace le backlog par un cas prêt à l'emploi (`exemple.py`).
 - Réduire le nombre de sprints renvoie les stories des sprints supprimés dans le backlog non planifié.
 - Vélocité moyenne = moyenne des points « Fait » des sprints dont la date de fin est passée.
 - Le Kanban se rafraîchit seul toutes les 20 s quand un autre participant déplace une carte.

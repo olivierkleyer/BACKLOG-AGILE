@@ -17,6 +17,10 @@
   <div class="card-title">Définition du Fini commune à l'équipe</div>
   <div class="field" style="margin-bottom:6px"><label>Un critère par ligne</label>
     <textarea name="dod_commune" rows="7">{{ projet.dod_commune|join('\n') }}</textarea></div>
+  <label style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 14px;font-size:13px;cursor:pointer">
+    <input type="checkbox" name="dod_bloquante" {% if projet.dod_bloquante %}checked{% endif %} style="width:18px;height:18px;margin-top:1px;accent-color:var(--blue)">
+    <span><b>DoD bloquante</b> — une story ne peut passer en « Fait » que si tous ses critères (communs et spécifiques) sont cochés.
+    <span class="muted">Décochez pour simplement afficher un avertissement.</span></span></label>
   <p class="muted small">Ces critères apparaissent sur chaque fiche story, en plus des critères spécifiques. Renommer un critère décoche ce critère sur les stories déjà cochées.</p>
 </div>
 </form>
