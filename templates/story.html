@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+{% block title %}{{ s.numero() }} · {{ s.titre }}{% endblock %}
+{% block page_title %}<span class="mono muted" style="font-size:13px">{{ s.numero() }}</span> &nbsp;{{ s.titre }}{% endblock %}
+{% block topbar_actions %}
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">&#8592; Backlog</a>
+  {% if prec %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=prec) }}" title="Story précédente">&#8249;</a>{% endif %}
+  {% if suiv %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=suiv) }}" title="Story suivante">&#8250;</a>{% endif %}
+  <button class="btn btn-primary btn-sm" form="fiche">Enregistrer</button>
+{% endblock %}
+{% block extra_css %}
+<style>
+.fiche{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
+.us-format .field label{color:var(--blue)}
+.us-format textarea{min-height:52px}
+.dod-list{list-style:none;display:flex;flex-direction:column;gap:6px}
+.dod-list li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--radius-sm);background:var(--gray-50);border:1px solid var(--gray-100)}
+.dod-list li.ok{background:var(--green-light);border-color:#bbf7d0}
+.dod-list input[type=checkbox]{width:17px;height:17px;accent-color:var(--green);flex:none}
+.dod-list input[type=text]{border:none;background:transparent;padding:2px 4px}
+.dod-list .lab{font-size:13px}
+.dod-sub{font-size:10px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 6px}
+.dod-sub:first-of-type{margin-top:0}
+.dod-score{font-family:'DM Mono',monospace;font-weight:700}
+.side .field{margin-bottom:12px}
+.taches td input,.taches td select{padding:6px 8px;font-size:12px}
+.taches .h{width:80px}
+.taches .r{width:90px}
+.taches .st{width:110px}
+.taches tfoot td{font-weight:700;background:var(--gray-50)}
+.ro-note{font-size:11px;color:var(--gray-500);margin-top:-6px;margin-bottom:12px}
+@media(max-width:900px){.fiche{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<datalist id="resp">{% for r in responsables %}<option value="{{ r }}">{% endfor %}</datalist>
+
+<form id="fiche" method="post" class="fiche">
+  <div>
+    <div class="card">
+      <div class="card-title">User story</div>
+      {% if not est_po %}<p class="ro-note">Le titre, la description, les critères et la priorité sont rédigés par le Product Owner.</p>{% endif %}
+      <div class="grid2">
+        <div class="field"><label>Titre</label><input type="text" name="titre" value="{{ s.titre }}" {% if not est_po %}disabled{% endif %} required></div>
+        <div class="field"><label>Feature</label>
+          <select name="feature_id" {% if not est_po %}disabled{% endif %}>
+            {% for f in features %}<option value="{{ f.id }}" {% if f.id==s.feature_id %}selected{% endif %}>{{ f.nom }}</option>{% endfor %}
+          </select></div>
+      </div>
+      <div class="us-format">
+        <div class="field"><label>En tant que…</label><textarea name="en_tant_que" placeholder="ex : viticulteur responsable de parcelle" {% if not est_po %}disabled{% endif %}>{{ s.en_tant_que }}</textarea></div>
+        <div class="field"><label>J'ai besoin de…</label><textarea name="besoin" placeholder="ex : visualiser l'avancement de la récolte parcelle par parcelle" {% if not est_po %}disabled{% endif %}>{{ s.besoin }}</textarea></div>
+        <div class="field"><label>Pour…</label><textarea name="pour" placeholder="ex : réaffecter les robots vers les parcelles en retard" {% if not est_po %}disabled{% endif %}>{{ s.pour }}</textarea></div>
+      </div>
+      <div class="field" style="margin-bottom:0"><label>Critères d'acceptation</label><textarea name="criteres" rows="4" placeholder="Étant donné… quand… alors…" {% if not est_po %}disabled{% endif %}>{{ s.criteres }}</textarea></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between">
+        <span>Définition du Fini</span>
+        <span class="dod-score" style="color:{{ 'var(--green)' if dod[1] and dod[0]==dod[1] else 'var(--gray-500)' }}">{{ dod[0] }} / {{ dod[1] }}</span>
+      </div>
+      <div class="dod-sub">DoD commune à l'équipe</div>
+      {% if dod_commune %}
+      <ul class="dod-list">
+        {% for l in dod_commune %}
+        <li class="{% if l in s.dod_commune_ok %}ok{% endif %}"><input type="checkbox" name="dodc_{{ loop.index0 }}" id="dc{{ loop.index0 }}" {% if l in s.dod_commune_ok %}checked{% endif %}><label class="lab" for="dc{{ loop.index0 }}">{{ l }}</label></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted small">Aucune DoD commune définie{% if est_po %} — <a href="{{ url_for('parametres') }}">la définir</a>{% endif %}.</p>{% endif %}
+
+      <div class="dod-sub">DoD spécifique à cette story</div>
+      <ul class="dod-list">
+        {% for d in s.dod %}
+        <li class="{% if d.ok %}ok{% endif %}"><input type="checkbox" name="dod_ok_{{ loop.index0 }}" {% if d.ok %}checked{% endif %}><input type="text" name="dod_label" value="{{ d.label }}" title="Videz le libellé pour supprimer le critère"></li>
+        {% endfor %}
+        <li><span style="width:17px;text-align:center;color:var(--gray-500)">+</span><input type="text" name="dod_nouveau" placeholder="Ajouter un critère spécifique (ex : testé sur parcelle en pente)"></li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="side">
+    <div class="card">
+      <div class="card-title">Pilotage</div>
+      <div class="field"><label>Statut</label>
+        <select name="statut">{% for st in STATUTS %}<option {% if st==s.statut %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Responsable</label><input type="text" name="responsable" value="{{ s.responsable }}" list="resp" placeholder="Trigramme" maxlength="40" style="text-transform:uppercase"></div>
+      <div class="field"><label>Priorité</label>
+        <select name="priorite" {% if not est_po %}disabled{% endif %}>{% for p in PRIORITES %}<option {% if p==s.priorite %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
+      <div class="field"><label>Estimation (points)</label><input type="number" name="points" min="0" step="0.5" value="{{ s.points|fmt }}"></div>
+      <div class="field"><label>Sprint</label>
+        <select name="sprint">
+          <option value="0">Non planifiée</option>
+          {% for i in range(1, projet.nb_sprints+1) %}<option value="{{ i }}" {% if s.sprint==i %}selected{% endif %}>Sprint {{ i }}</option>{% endfor %}
+        </select></div>
+      <button class="btn btn-primary" style="width:100%;justify-content:center">Enregistrer la story</button>
+    </div>
+    <div class="card small muted">
+      Tâches : <strong class="mono" style="color:var(--navy)">{{ s.heures()|fmt }} h</strong> estimées,
+      <strong class="mono" style="color:var(--navy)">{{ s.heures_restantes()|fmt }} h</strong> restantes.
+      {% if est_po %}
+      <hr style="border:none;border-top:1px solid var(--gray-200);margin:12px 0">
+      <button class="btn btn-ghost btn-sm" form="suppr" style="color:var(--red)">Supprimer la story</button>
+      {% endif %}
+    </div>
+  </div>
+</form>
+{% if est_po %}
+<form id="suppr" method="post" action="{{ url_for('story_supprimer', sid=s.id) }}" onsubmit="return confirm('Supprimer définitivement cette story et ses tâches ?')"></form>
+{% endif %}
+
+<div class="card taches" id="taches">
+  <div class="card-title">Tâches de la story</div>
+  <table class="data-table">
+    <thead><tr><th>Tâche</th><th class="c">Heures</th><th class="c">Resp.</th><th class="c">Statut</th><th></th></tr></thead>
+    <tbody>
+    {% for t in s.taches %}{% set fid = 'ft' ~ t.id %}
+      <tr>
+        <td><input form="{{ fid }}" type="text" name="titre" value="{{ t.titre }}" required></td>
+        <td class="c"><input form="{{ fid }}" class="h" type="number" name="heures" min="0" step="0.5" value="{{ t.heures|fmt }}"></td>
+        <td class="c"><input form="{{ fid }}" class="r" type="text" name="responsable" value="{{ t.responsable }}" list="resp" style="text-transform:uppercase"></td>
+        <td class="c"><select form="{{ fid }}" class="st" name="statut" onchange="this.form.submit()">{% for st in STATUTS %}<option {% if st==t.statut %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></td>
+        <td class="c" style="white-space:nowrap"><button form="{{ fid }}" class="btn btn-ghost btn-sm">OK</button> <button form="{{ fid }}" class="btn-link" name="supprimer" value="1" title="Supprimer la tâche" onclick="return confirm('Supprimer cette tâche ?')">&#10005;</button></td>
+      </tr>
+    {% endfor %}
+      <tr>
+        <td><input form="ft-new" type="text" name="titre" placeholder="Nouvelle tâche…" required></td>
+        <td class="c"><input form="ft-new" class="h" type="number" name="heures" min="0" step="0.5" placeholder="h"></td>
+        <td class="c"><input form="ft-new" class="r" type="text" name="responsable" list="resp" placeholder="Resp." style="text-transform:uppercase"></td>
+        <td></td>
+        <td class="c"><button form="ft-new" class="btn btn-success btn-sm">+ Tâche</button></td>
+      </tr>
+    </tbody>
+    {% if s.taches %}
+    <tfoot><tr><td>Total</td><td class="c mono">{{ s.heures()|fmt }} h</td><td></td><td class="c small">{{ s.taches|selectattr('statut','equalto','Fait')|list|length }}/{{ s.taches|length }} faites</td><td></td></tr></tfoot>
+    {% endif %}
+  </table>
+  {% for t in s.taches %}<form id="ft{{ t.id }}" method="post" action="{{ url_for('tache_modifier', tid=t.id) }}"></form>{% endfor %}
+  <form id="ft-new" method="post" action="{{ url_for('tache_ajouter', sid=s.id) }}"></form>
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+document.querySelectorAll('.dod-list input[type=checkbox]').forEach(function(c){
+  c.addEventListener('change',function(){ c.closest('li').classList.toggle('ok', c.checked); });
+});
+</script>
+{% endblock %}

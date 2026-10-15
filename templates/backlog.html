@@ -1,0 +1,131 @@
+{% extends 'base.html' %}
+{% block title %}Product backlog{% endblock %}
+{% block page_title %}Product backlog{% endblock %}
+{% block extra_css %}
+<style>
+.filtres{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
+.filtres .field{margin:0;min-width:160px}
+.feat-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
+.feat-name{font-size:15px;font-weight:800;color:var(--navy)}
+.feat-rel{font-size:11px;font-weight:600;color:var(--purple);background:var(--purple-light);padding:2px 8px;border-radius:99px;margin-left:8px}
+.feat-actions{display:flex;gap:6px;align-items:center}
+.feat-actions form{display:inline}
+.feat-edit{display:none;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+.feat-edit.open{display:flex}
+.feat-edit input{max-width:260px}
+.story-link{font-weight:600;color:var(--navy);text-decoration:none}
+.story-link:hover{color:var(--blue);text-decoration:underline}
+.us-id{font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500)}
+.ajout-story{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+.ajout-story input{flex:1;min-width:220px}
+.ajout-story select{width:90px}
+.vide{padding:18px;text-align:center;color:var(--gray-500);font-size:13px}
+.feat-prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--gray-500)}
+.feat-prog .progress{width:120px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-label">User stories</div><div class="stat-value">{{ stats.stories }}</div></div>
+  <div class="stat-card"><div class="stat-label">Points estimés</div><div class="stat-value">{{ stats.points|fmt }}</div>
+    <div class="stat-sub">{{ stats.fait|fmt }} pts terminés{% if stats.points %} ({{ (100*stats.fait/stats.points)|round|int }} %){% endif %}</div></div>
+  <div class="stat-card"><div class="stat-label">Non planifiées</div><div class="stat-value">{{ stats.non_planifiees }}</div><div class="stat-sub">sans sprint</div></div>
+  <div class="stat-card"><div class="stat-label">Non estimées</div><div class="stat-value">{{ stats.non_estimees }}</div><div class="stat-sub">0 point</div></div>
+</div>
+
+<form class="filtres no-print" method="get">
+  <div class="field"><label>Sprint</label>
+    <select name="sprint" onchange="this.form.submit()">
+      <option value="">Tous</option>
+      <option value="0" {% if filtre_sprint=='0' %}selected{% endif %}>Non planifiées</option>
+      {% for i in range(1, projet.nb_sprints+1) %}<option value="{{ i }}" {% if filtre_sprint==i|string %}selected{% endif %}>Sprint {{ i }}</option>{% endfor %}
+    </select></div>
+  <div class="field"><label>Statut</label>
+    <select name="statut" onchange="this.form.submit()">
+      <option value="">Tous</option>
+      {% for st in STATUTS %}<option {% if filtre_statut==st %}selected{% endif %}>{{ st }}</option>{% endfor %}
+    </select></div>
+  {% if filtre_sprint or filtre_statut %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
+</form>
+
+{% if not blocs %}
+<div class="card vide">
+  Le backlog est vide.
+  {% if est_po %}Commencez par créer une <strong>feature</strong> ci-dessous, puis ajoutez-lui des user stories.{% else %}Le Product Owner n'a pas encore créé de feature.{% endif %}
+</div>
+{% endif %}
+
+{% for b in blocs %}
+<div class="card">
+  <div class="feat-head">
+    <div>
+      <span class="feat-name">{{ b.f.nom }}</span>{% if b.f.release %}<span class="feat-rel">{{ b.f.release }}</span>{% endif %}
+    </div>
+    <div class="feat-actions">
+      <div class="feat-prog">
+        <div class="progress"><span style="width:{{ (100*b.fait/b.points)|round|int if b.points else 0 }}%"></span></div>
+        {{ b.fait|fmt }} / {{ b.points|fmt }} pts
+      </div>
+      {% if est_po %}
+      <form method="post" action="{{ url_for('feature_deplacer', fid=b.f.id, sens='haut') }}"><button class="btn-link" title="Monter">&#9650;</button></form>
+      <form method="post" action="{{ url_for('feature_deplacer', fid=b.f.id, sens='bas') }}"><button class="btn-link" title="Descendre">&#9660;</button></form>
+      <button class="btn-link" type="button" onclick="document.getElementById('fe{{ b.f.id }}').classList.toggle('open')">Modifier</button>
+      <form method="post" action="{{ url_for('feature_supprimer', fid=b.f.id) }}" onsubmit="return confirm('Supprimer la feature « {{ b.f.nom|e }} » et ses {{ b.f.stories|length }} stories ?')"><button class="btn-link">Supprimer</button></form>
+      {% endif %}
+    </div>
+  </div>
+  {% if est_po %}
+  <form class="feat-edit" id="fe{{ b.f.id }}" method="post" action="{{ url_for('feature_modifier', fid=b.f.id) }}">
+    <input type="text" name="nom" value="{{ b.f.nom }}" placeholder="Nom de la feature" required>
+    <input type="text" name="release" value="{{ b.f.release }}" placeholder="Release (ex : R1 – MVP)">
+    <button class="btn btn-primary btn-sm">Enregistrer</button>
+  </form>
+  {% endif %}
+
+  {% if b.stories %}
+  <table class="data-table">
+    <thead><tr><th>N°</th><th>User story</th><th class="c">Resp.</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
+    <tbody>
+    {% for s in b.stories %}{% set d = s.dod_etat(dod_commune) %}
+      <tr>
+        <td class="us-id">{{ s.numero() }}</td>
+        <td><a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a></td>
+        <td class="c mono small">{{ s.responsable or '—' }}</td>
+        <td class="c"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span></td>
+        <td class="c mono">{{ s.points|fmt if s.points else '—' }}{% if s.points %} <span class="muted small">pts</span>{% endif %}</td>
+        <td class="c small">{% if s.taches %}{{ s.taches|length }} · <span class="mono">{{ s.heures()|fmt }} h</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        <td class="c small mono"{% if d[1] and d[0]==d[1] %} style="color:var(--green);font-weight:700"{% endif %}>{{ d[0] }}/{{ d[1] }}</td>
+        <td class="c"><span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span></td>
+        <td class="c">{% if s.sprint %}<span class="badge sp">S{{ s.sprint }}</span>{% else %}<span class="badge sp-0">—</span>{% endif %}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% elif not (filtre_sprint or filtre_statut) %}
+  <div class="vide">Aucune story dans cette feature.</div>
+  {% else %}
+  <div class="vide">Aucune story ne correspond aux filtres.</div>
+  {% endif %}
+
+  {% if est_po %}
+  <form class="ajout-story no-print" method="post" action="{{ url_for('story_ajouter') }}">
+    <input type="hidden" name="feature_id" value="{{ b.f.id }}">
+    <input type="text" name="titre" placeholder="Nouvelle user story : titre court…" required>
+    <select name="priorite">{% for p in PRIORITES %}<option {% if p=='P2' %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+    <button class="btn btn-primary btn-sm">+ Story</button>
+  </form>
+  {% endif %}
+</div>
+{% endfor %}
+
+{% if est_po %}
+<div class="card no-print">
+  <div class="card-title">Nouvelle feature</div>
+  <form method="post" action="{{ url_for('feature_ajouter') }}" style="display:flex;gap:10px;flex-wrap:wrap">
+    <input type="text" name="nom" placeholder="Nom de la feature (ex : Gestion du parcours de vendange)" required style="flex:2;min-width:240px">
+    <input type="text" name="release" placeholder="Release (facultatif)" style="flex:1;min-width:160px">
+    <button class="btn btn-success">+ Feature</button>
+  </form>
+</div>
+{% endif %}
+{% endblock %}

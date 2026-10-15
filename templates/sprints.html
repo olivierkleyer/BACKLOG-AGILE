@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block title %}Planification des sprints{% endblock %}
+{% block page_title %}Planification des sprints{% endblock %}
+{% block topbar_actions %}
+  {% if est_po %}<button class="btn btn-primary btn-sm" form="f-sprints">Enregistrer</button>{% endif %}
+{% endblock %}
+{% block extra_css %}
+<style>
+.cap{width:80px}
+.obj{min-width:240px}
+.charge{display:flex;align-items:center;gap:8px;min-width:120px}
+.charge .progress{flex:1}
+tr.courant td{background:var(--blue-ll)}
+.np-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--gray-100)}
+.np-row:last-child{border-bottom:none}
+.np-row .t{flex:1;min-width:0}
+.np-row select{width:150px}
+</style>
+{% endblock %}
+{% block content %}
+<div class="stats-grid">
+  <div class="stat-card"><div class="stat-label">Sprints</div><div class="stat-value">{{ projet.nb_sprints }}</div><div class="stat-sub">de {{ projet.duree_semaines }} semaine{{ 's' if projet.duree_semaines>1 }}</div></div>
+  <div class="stat-card"><div class="stat-label">Vélocité moyenne</div><div class="stat-value">{{ velocite|fmt if velocite is not none else '—' }}</div>
+    <div class="stat-sub">{% if nb_termines %}pts / sprint sur {{ nb_termines }} sprint{{ 's' if nb_termines>1 }} terminé{{ 's' if nb_termines>1 }}{% else %}aucun sprint terminé{% endif %}</div></div>
+  <div class="stat-card"><div class="stat-label">Points planifiés</div><div class="stat-value">{{ sprints|sum(attribute='engage')|fmt }}</div></div>
+  <div class="stat-card"><div class="stat-label">Stories non planifiées</div><div class="stat-value">{{ non_planifiees|length }}</div></div>
+</div>
+
+<div class="card">
+  <div class="card-title">Sprints · objectif et capacité</div>
+  {% if not est_po %}<p class="muted small" style="margin:-6px 0 12px">L'objectif et la capacité sont fixés par le Product Owner avec l'équipe en sprint planning.</p>{% endif %}
+  <form id="f-sprints" method="post">
+  <table class="data-table">
+    <thead><tr><th>Sprint</th><th>Dates</th><th>Objectif du sprint</th><th class="c">Capacité (pts)</th><th class="c">Engagé</th><th>Charge</th><th class="c">Terminé</th><th class="c">Stories</th></tr></thead>
+    <tbody>
+    {% for r in sprints %}{% set courant = r.debut and r.debut <= aujourdhui <= r.fin %}
+      <tr class="{{ 'courant' if courant }}">
+        <td><a href="{{ url_for('kanban', sprint=r.sprint.numero) }}" style="font-weight:800;color:var(--navy);text-decoration:none">S{{ r.sprint.numero }}</a>{% if courant %} <span class="badge sp">en cours</span>{% endif %}</td>
+        <td class="small muted" style="white-space:nowrap">{% if r.debut %}{{ r.debut.strftime('%d/%m') }} → {{ r.fin.strftime('%d/%m/%y') }}{% else %}—{% endif %}</td>
+        <td><input class="obj" type="text" name="objectif_{{ r.sprint.numero }}" value="{{ r.sprint.objectif }}" placeholder="Objectif…" {% if not est_po %}disabled{% endif %}></td>
+        <td class="c"><input class="cap" type="number" min="0" step="0.5" name="capacite_{{ r.sprint.numero }}" value="{{ r.sprint.capacite|fmt if r.sprint.capacite else '' }}" {% if not est_po %}disabled{% endif %}></td>
+        <td class="c mono">{{ r.engage|fmt }}</td>
+        <td>{% if r.charge_pct is not none %}<div class="charge"><div class="progress {% if r.charge_pct > 100 %}over{% endif %}"><span style="width:{{ [100, r.charge_pct]|min }}%"></span></div><span class="small mono" style="{{ 'color:var(--red);font-weight:700' if r.charge_pct > 100 }}">{{ r.charge_pct }} %</span></div>{% else %}<span class="muted small">—</span>{% endif %}</td>
+        <td class="c mono">{{ r.fait|fmt }}</td>
+        <td class="c">{{ r.nb }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  </form>
+</div>
+
+<div class="card" id="non-planifiees">
+  <div class="card-title">Stories non planifiées · par priorité</div>
+  {% for s in non_planifiees %}
+  <form class="np-row" method="post" action="{{ url_for('story_sprint', sid=s.id) }}">
+    <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
+    <div class="t"><a href="{{ url_for('story', sid=s.id) }}" style="font-weight:600;color:var(--navy);text-decoration:none">{{ s.titre }}</a>
+      <div class="small muted">{{ s.numero() }} · {{ s.feature.nom }}</div></div>
+    <span class="mono small">{{ s.points|fmt if s.points else '?' }} pts</span>
+    <select name="sprint" onchange="this.form.submit()">
+      <option value="0">Affecter à…</option>
+      {% for r in sprints %}<option value="{{ r.sprint.numero }}">Sprint {{ r.sprint.numero }}{% if r.sprint.capacite %} ({{ r.engage|fmt }}/{{ r.sprint.capacite|fmt }}){% endif %}</option>{% endfor %}
+    </select>
+  </form>
+  {% else %}
+  <p class="muted small">Toutes les stories sont planifiées.</p>
+  {% endfor %}
+</div>
+{% endblock %}

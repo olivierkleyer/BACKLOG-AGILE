@@ -1,0 +1,149 @@
+{% extends 'base.html' %}
+{% block title %}Kanban · Sprint {{ n }}{% endblock %}
+{% block page_title %}Kanban du sprint {{ n }}{% endblock %}
+{% block topbar_actions %}
+  {% if debut %}<span class="small muted">du {{ debut.strftime('%d/%m/%Y') }} au {{ fin.strftime('%d/%m/%Y') }}</span>{% endif %}
+{% endblock %}
+{% block extra_css %}
+<style>
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tab{padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;color:var(--gray-700);background:white;border:1px solid var(--gray-200)}
+.tab:hover{border-color:var(--blue);color:var(--blue)}
+.tab.active{background:var(--navy);color:white;border-color:var(--navy)}
+.tab .cnt{font-weight:500;opacity:.6;margin-left:4px}
+.sprint-head{display:grid;grid-template-columns:minmax(0,2fr) repeat(3,minmax(0,1fr));gap:14px;margin-bottom:18px}
+.objectif{font-size:14px;color:var(--gray-900);line-height:1.45}
+.board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:start}
+.col{background:var(--gray-100);border-radius:var(--radius);padding:12px;min-height:300px;border:2px dashed transparent;transition:border-color .15s,background .15s}
+.col.over{border-color:var(--blue);background:var(--blue-ll)}
+.col-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;padding:0 4px}
+.col-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--gray-700)}
+.col-sum{font-size:11px;color:var(--gray-500);font-family:'DM Mono',monospace}
+.kcard{background:white;border-radius:10px;padding:11px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.06);border:1px solid var(--gray-200);border-left:4px solid var(--gray-300);cursor:grab}
+.kcard.P1{border-left-color:var(--red)}.kcard.P2{border-left-color:var(--amber)}.kcard.P3{border-left-color:var(--blue)}
+.kcard.dragging{opacity:.4}
+.kcard a.t{display:block;font-size:13px;font-weight:700;color:var(--navy);text-decoration:none;margin:3px 0 8px;line-height:1.3}
+.kcard a.t:hover{color:var(--blue)}
+.kmeta{display:flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--gray-500)}
+.kmeta .pts{font-family:'DM Mono',monospace;font-weight:700;color:var(--navy);background:var(--gray-100);padding:2px 7px;border-radius:6px}
+.kfoot{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.kmove button{background:var(--gray-100);border:none;border-radius:6px;width:26px;height:24px;cursor:pointer;color:var(--gray-700);font-size:13px}
+.kmove button:hover{background:var(--blue-light);color:var(--blue)}
+.dod-ko{color:var(--amber);font-weight:700}
+.dod-ok{color:var(--green);font-weight:700}
+.vide-col{text-align:center;font-size:12px;color:var(--gray-500);padding:20px 0}
+@media(max-width:900px){.board{grid-template-columns:1fr}.col{min-height:90px}.sprint-head{grid-template-columns:1fr 1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="tabs">
+  {% for r in sprints %}
+  <a class="tab {% if r.sprint.numero==n %}active{% endif %}" href="{{ url_for('kanban', sprint=r.sprint.numero) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>
+  {% endfor %}
+</div>
+
+<div class="sprint-head">
+  <div class="stat-card"><div class="stat-label">Objectif du sprint</div>
+    <div class="objectif">{{ sp.objectif or '—' }}</div>
+    {% if not sp.objectif %}<div class="stat-sub"><a href="{{ url_for('sprints') }}">Définir l'objectif et la capacité</a></div>{% endif %}</div>
+  <div class="stat-card"><div class="stat-label">Points engagés</div><div class="stat-value">{{ engage|fmt }}</div>
+    <div class="stat-sub">capacité : {{ sp.capacite|fmt if sp.capacite else 'non définie' }}</div>
+    {% if sp.capacite %}<div class="progress {% if engage > sp.capacite %}over{% endif %}" style="margin-top:8px"><span style="width:{{ [100, (100*engage/sp.capacite)|round|int]|min }}%"></span></div>{% endif %}</div>
+  <div class="stat-card"><div class="stat-label">Points terminés</div><div class="stat-value" id="pts-fait">{{ fait|fmt }}</div>
+    <div class="stat-sub">{% if engage %}{{ (100*fait/engage)|round|int }} % de l'engagement{% else %}—{% endif %}</div></div>
+  <div class="stat-card"><div class="stat-label">Backlog non planifié</div><div class="stat-value">{{ non_planifiees }}</div>
+    <div class="stat-sub"><a href="{{ url_for('sprints') }}">Planifier des stories</a></div></div>
+</div>
+
+<div class="board">
+  {% for st in STATUTS %}
+  <div class="col" data-statut="{{ st }}">
+    <div class="col-head"><span class="col-title">{{ st }}</span><span class="col-sum"><span class="n">{{ colonnes[st]|length }}</span> · <span class="p">{{ colonnes[st]|sum(attribute='points')|fmt }}</span> pts</span></div>
+    {% for s in colonnes[st] %}{% set d = s.dod_etat(dod_commune) %}
+    <div class="kcard {{ s.priorite }}" draggable="true" data-id="{{ s.id }}" data-pts="{{ s.points or 0 }}" data-dod="{{ d[0] }}/{{ d[1] }}" data-dodok="{{ 1 if d[0]==d[1] else 0 }}">
+      <div class="kmeta"><span class="mono">{{ s.numero() }}</span> · {{ s.feature.nom }}</div>
+      <a class="t" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>
+      <div class="kmeta">
+        <span class="pts">{{ s.points|fmt if s.points else '?' }} pts</span>
+        <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
+        {% if s.responsable %}<span class="mono">{{ s.responsable }}</span>{% endif %}
+      </div>
+      <div class="kfoot">
+        <div class="kmeta">
+          <span class="{{ 'dod-ok' if d[0]==d[1] else 'dod-ko' }}" title="Définition du Fini">DoD {{ d[0] }}/{{ d[1] }}</span>
+          {% if s.taches %}<span title="Tâches faites">&#9745; {{ s.taches|selectattr('statut','equalto','Fait')|list|length }}/{{ s.taches|length }}</span>{% endif %}
+        </div>
+        <div class="kmove"><button type="button" data-dir="-1" title="Colonne précédente">&#8249;</button> <button type="button" data-dir="1" title="Colonne suivante">&#8250;</button></div>
+      </div>
+    </div>
+    {% endfor %}
+    {% if not colonnes[st] %}<div class="vide-col">Aucune story</div>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% if not (colonnes.values()|map('length')|sum) %}
+<p class="muted small" style="margin-top:14px">Aucune story dans ce sprint. Affectez des stories au sprint {{ n }} depuis la <a href="{{ url_for('sprints') }}">planification</a> ou depuis la fiche story.</p>
+{% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+var STATUTS = {{ STATUTS|tojson }};
+var drag = null, enCours = false;
+
+function majColonnes(){
+  document.querySelectorAll('.col').forEach(function(c){
+    var cards = c.querySelectorAll('.kcard'), pts = 0;
+    cards.forEach(function(k){ pts += parseFloat(k.dataset.pts) || 0; });
+    c.querySelector('.n').textContent = cards.length;
+    c.querySelector('.p').textContent = Math.round(pts*10)/10;
+    var v = c.querySelector('.vide-col');
+    if (cards.length && v) v.remove();
+    if (!cards.length && !v){ v = document.createElement('div'); v.className='vide-col'; v.textContent='Aucune story'; c.appendChild(v); }
+  });
+  var fait = 0;
+  document.querySelectorAll('.col[data-statut="Fait"] .kcard').forEach(function(k){ fait += parseFloat(k.dataset.pts)||0; });
+  document.getElementById('pts-fait').textContent = Math.round(fait*10)/10;
+}
+
+function deplacer(card, statut){
+  if (statut === 'Fait' && card.dataset.dodok !== '1' &&
+      !confirm('La Définition du Fini de cette story n\'est pas complète (' + card.dataset.dod + ').\nLa passer quand même en « Fait » ?')) return;
+  var col = document.querySelector('.col[data-statut="' + statut + '"]');
+  col.appendChild(card); majColonnes(); enCours = true;
+  fetch('/api/story/' + card.dataset.id + '/statut', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({statut: statut})})
+    .then(function(r){ if(!r.ok) throw r; return r.json(); })
+    .catch(function(){ alert('Enregistrement impossible, la page va être rechargée.'); location.reload(); })
+    .finally(function(){ enCours = false; });
+}
+
+document.querySelectorAll('.kcard').forEach(function(k){
+  k.addEventListener('dragstart', function(e){ drag = k; k.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
+  k.addEventListener('dragend', function(){ k.classList.remove('dragging'); drag = null; });
+  k.querySelectorAll('.kmove button').forEach(function(b){
+    b.addEventListener('click', function(){
+      var i = STATUTS.indexOf(k.closest('.col').dataset.statut) + parseInt(b.dataset.dir, 10);
+      if (i >= 0 && i < STATUTS.length) deplacer(k, STATUTS[i]);
+    });
+  });
+});
+document.querySelectorAll('.col').forEach(function(c){
+  c.addEventListener('dragover', function(e){ e.preventDefault(); c.classList.add('over'); });
+  c.addEventListener('dragleave', function(){ c.classList.remove('over'); });
+  c.addEventListener('drop', function(e){
+    e.preventDefault(); c.classList.remove('over');
+    if (drag && drag.closest('.col') !== c) deplacer(drag, c.dataset.statut);
+  });
+});
+
+// Rafraichissement : si un autre membre de l'equipe a deplace une carte, on recharge
+setInterval(function(){
+  if (drag || enCours || document.hidden) return;
+  fetch('/api/kanban/{{ n }}').then(function(r){ return r.json(); }).then(function(etat){
+    var local = {};
+    document.querySelectorAll('.kcard').forEach(function(k){ local[k.dataset.id] = k.closest('.col').dataset.statut; });
+    if (JSON.stringify(Object.keys(etat).sort()) !== JSON.stringify(Object.keys(local).sort())) return location.reload();
+    for (var id in etat) if (etat[id] !== local[id]) return location.reload();
+  }).catch(function(){});
+}, 20000);
+</script>
+{% endblock %}

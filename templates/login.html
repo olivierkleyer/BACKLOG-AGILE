@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Connexion — Backlog Agile</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;background:#0f172a;min-height:100vh;display:flex;align-items:center;justify-content:center;padding:24px}
+.login-card{background:white;border-radius:16px;width:100%;max-width:420px;overflow:hidden;box-shadow:0 25px 50px rgba(0,0,0,.4)}
+.login-header{background:#1a2744;padding:36px 36px 28px;text-align:center}
+.login-header h1{font-size:20px;font-weight:800;color:white;margin-bottom:6px}
+.login-header p{font-size:12px;color:rgba(255,255,255,.4)}
+.login-body{padding:32px 36px}
+.field{margin-bottom:18px}
+.field label{display:block;font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:.8px;margin-bottom:6px}
+.field input{width:100%;padding:11px 14px;border:1.5px solid #e2e8f0;border-radius:8px;font-size:14px;font-family:'DM Sans',sans-serif;transition:border-color .15s;color:#0f172a}
+.field input:focus{outline:none;border-color:#2563eb;box-shadow:0 0 0 3px rgba(37,99,235,.1)}
+.login-btn{width:100%;padding:13px;background:#2563eb;color:white;border:none;border-radius:8px;font-size:15px;font-weight:700;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;margin-top:4px}
+.login-btn:hover{background:#1d4ed8;transform:translateY(-1px)}
+.error{background:#fee2e2;color:#dc2626;padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;font-weight:500}
+.hint{background:#f1f5f9;border-radius:8px;padding:14px;margin-top:20px}
+.hint p{font-size:11px;color:#64748b;line-height:1.6}
+.hint strong{color:#334155}
+</style>
+</head>
+<body>
+<div class="login-card">
+  <div class="login-header">
+    <h1>📋 Backlog Agile</h1>
+    <p>Product backlog, sprints et Kanban</p>
+  </div>
+  <div class="login-body">
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% for category, message in messages %}
+        <div class="error">{{ message }}</div>
+      {% endfor %}
+    {% endwith %}
+    <form method="POST">
+      <div class="field">
+        <label>Identifiant</label>
+        <input type="text" name="username" placeholder="ex : po ou dev1" autofocus required autocapitalize="none" autocorrect="off" spellcheck="false" />
+      </div>
+      <div class="field">
+        <label>Mot de passe</label>
+        <input type="password" name="password" required autocapitalize="none" autocorrect="off" />
+      </div>
+      <button type="submit" class="login-btn">Se connecter →</button>
+    </form>
+    <div class="hint">
+      <p>Vos identifiants de connexion vous ont ete communiques par votre formateur.</p>
+    </div>
+  </div>
+</div>
+</body>
+</html>
