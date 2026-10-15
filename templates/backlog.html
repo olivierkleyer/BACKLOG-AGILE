@@ -7,7 +7,10 @@
 .filtres .field{margin:0;min-width:160px}
 .feat-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .feat-name{font-size:15px;font-weight:800;color:var(--navy)}
-.feat-rel{font-size:11px;font-weight:600;color:var(--purple);background:var(--purple-light);padding:2px 8px;border-radius:99px;margin-left:8px}
+.feat-rel{font-size:11px;font-weight:700;color:white;padding:3px 9px;border-radius:99px;margin-left:8px;white-space:nowrap}
+.feat-rel small{font-weight:500;opacity:.85;margin-left:4px}
+.feat-rel.none{background:var(--gray-100);color:var(--gray-500);font-weight:500}
+.rc0{background:#2563eb}.rc1{background:#7c3aed}.rc2{background:#0d9488}.rc3{background:#d97706}.rc4{background:#db2777}.rc5{background:#475569}
 .feat-actions{display:flex;gap:6px;align-items:center}
 .feat-actions form{display:inline}
 .feat-edit{display:none;gap:8px;margin-bottom:12px;flex-wrap:wrap}
@@ -34,6 +37,12 @@
 </div>
 
 <form class="filtres no-print" method="get">
+  <div class="field"><label>Release</label>
+    <select name="release" onchange="this.form.submit()">
+      <option value="">Toutes</option>
+      <option value="0" {% if filtre_release=='0' %}selected{% endif %}>Sans release</option>
+      {% for r in releases %}<option value="{{ r.id }}" {% if filtre_release==r.id|string %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
+    </select></div>
   <div class="field"><label>Sprint</label>
     <select name="sprint" onchange="this.form.submit()">
       <option value="">Tous</option>
@@ -45,7 +54,7 @@
       <option value="">Tous</option>
       {% for st in STATUTS %}<option {% if filtre_statut==st %}selected{% endif %}>{{ st }}</option>{% endfor %}
     </select></div>
-  {% if filtre_sprint or filtre_statut %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
+  {% if filtre_sprint or filtre_statut or filtre_release %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
 </form>
 
 {% if not blocs %}
@@ -59,7 +68,7 @@
 <div class="card">
   <div class="feat-head">
     <div>
-      <span class="feat-name">{{ b.f.nom }}</span>{% if b.f.release %}<span class="feat-rel">{{ b.f.release }}</span>{% endif %}
+      <span class="feat-name">{{ b.f.nom }}</span>{% if b.cal %}<span class="feat-rel rc{{ b.cal.i % 6 }}">{{ b.cal.r.nom }}<small>S{{ b.cal.s1 }}{% if b.cal.s2 > b.cal.s1 %}→S{{ b.cal.s2 }}{% endif %}{% if b.cal.fin %} · fin {{ b.cal.fin.strftime('%d/%m/%Y') }}{% endif %}</small></span>{% else %}<span class="feat-rel none">sans release</span>{% endif %}
     </div>
     <div class="feat-actions">
       <div class="feat-prog">
@@ -77,7 +86,7 @@
   {% if est_po %}
   <form class="feat-edit" id="fe{{ b.f.id }}" method="post" action="{{ url_for('feature_modifier', fid=b.f.id) }}">
     <input type="text" name="nom" value="{{ b.f.nom }}" placeholder="Nom de la feature" required>
-    <input type="text" name="release" value="{{ b.f.release }}" placeholder="Release (ex : R1 – MVP)">
+    <select name="release_id" style="max-width:220px"><option value="">Sans release</option>{% for r in releases %}<option value="{{ r.id }}" {% if r.id==b.f.release_id %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}</select>
     <button class="btn btn-primary btn-sm">Enregistrer</button>
   </form>
   {% endif %}
@@ -123,7 +132,7 @@
   <div class="card-title">Nouvelle feature</div>
   <form method="post" action="{{ url_for('feature_ajouter') }}" style="display:flex;gap:10px;flex-wrap:wrap">
     <input type="text" name="nom" placeholder="Nom de la feature (ex : Gestion du parcours de vendange)" required style="flex:2;min-width:240px">
-    <input type="text" name="release" placeholder="Release (facultatif)" style="flex:1;min-width:160px">
+    <select name="release_id" style="flex:1;min-width:160px"><option value="">Sans release</option>{% for r in releases %}<option value="{{ r.id }}">{{ r.nom }}</option>{% endfor %}</select>
     <button class="btn btn-success">+ Feature</button>
   </form>
 </div>

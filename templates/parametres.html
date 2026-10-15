@@ -10,14 +10,8 @@
   <div class="field" style="margin-bottom:0"><label>Vision produit</label><textarea name="vision" rows="3" placeholder="Pour… qui… notre produit est… qui…">{{ projet.vision }}</textarea></div>
 </div>
 <div class="card">
-  <div class="card-title">Sprints</div>
-  <div class="grid4" style="grid-template-columns:repeat(3,minmax(0,220px))">
-    <div class="field"><label>Nombre de sprints (1 à {{ SPRINTS_MAX }})</label><input type="number" name="nb_sprints" min="1" max="{{ SPRINTS_MAX }}" value="{{ projet.nb_sprints }}" required></div>
-    <div class="field"><label>Durée d'un sprint</label>
-      <select name="duree_semaines">{% for d in range(DUREE_MIN, DUREE_MAX+1) %}<option value="{{ d }}" {% if d==projet.duree_semaines %}selected{% endif %}>{{ d }} semaine{{ 's' if d>1 }}</option>{% endfor %}</select></div>
-    <div class="field"><label>Début du sprint 1</label><input type="date" name="date_debut" value="{{ projet.date_debut }}"></div>
-  </div>
-  <p class="muted small">Si vous réduisez le nombre de sprints, les stories des sprints supprimés reviennent dans le backlog non planifié.</p>
+  <div class="card-title">Sprints et releases</div>
+  <p class="small">La durée des sprints, leur nombre, la date de début et les releases se règlent dans <a href="{{ url_for('sprints') }}">Planification · releases &amp; sprints</a>.</p>
 </div>
 <div class="card">
   <div class="card-title">Définition du Fini commune à l'équipe</div>

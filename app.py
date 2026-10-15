@@ -91,10 +91,19 @@ class Sprint(db.Model):
     objectif = db.Column(db.Text, default='')
     capacite = db.Column(db.Float, default=0)             # en points
 
+class Release(db.Model):
+    """Une release regroupe des sprints consecutifs : R1 = sprints 1 a n1, R2 = n1+1 a n1+n2..."""
+    id = db.Column(db.Integer, primary_key=True)
+    nom = db.Column(db.String(80), nullable=False)
+    nb_sprints = db.Column(db.Integer, default=1)
+    objectif = db.Column(db.Text, default='')
+    ordre = db.Column(db.Integer, default=0)
+    features = db.relationship('Feature', backref='release', lazy=True)
+
 class Feature(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nom = db.Column(db.String(200), nullable=False)
-    release = db.Column(db.String(80), default='')
+    release_id = db.Column(db.Integer, db.ForeignKey('release.id'), nullable=True)
     ordre = db.Column(db.Integer, default=0)
     stories = db.relationship('Story', backref='feature', cascade='all, delete-orphan', lazy=True)
 
@@ -258,6 +267,27 @@ def resume_sprints(p):
                     'charge_pct': round(100 * engage / s.capacite) if s.capacite else None})
     return out
 
+def calendrier_releases(p):
+    """Pour chaque release : sprints couverts, dates, points. Les releases s'enchainent dans l'ordre."""
+    out, cumul = [], 0
+    for r in Release.query.order_by(Release.ordre, Release.id).all():
+        s1, s2 = cumul + 1, cumul + r.nb_sprints
+        cumul = s2
+        debut, _ = dates_sprint(p, s1)
+        _, fin = dates_sprint(p, s2)
+        stories = [s for f in r.features for s in f.stories]
+        pts = sum(s.points or 0 for s in stories)
+        fait = sum(s.points or 0 for s in stories if s.statut == 'Fait')
+        hors = [s for s in stories if s.sprint and not (s1 <= s.sprint <= s2)]
+        out.append({'r': r, 'i': len(out), 's1': s1, 's2': s2, 'debut': debut, 'fin': fin,
+                    'depasse': s2 > p.nb_sprints, 'points': pts, 'fait': fait,
+                    'nb_stories': len(stories), 'hors': hors,
+                    'pct': round(100 * fait / pts) if pts else 0})
+    return out
+
+def release_du_sprint(cal, n):
+    return next((c for c in cal if c['s1'] <= n <= c['s2']), None)
+
 def responsables_connus():
     noms = set()
     for s in Story.query.all():
@@ -274,6 +304,12 @@ def backlog():
     features = Feature.query.order_by(Feature.ordre, Feature.id).all()
     filtre_sprint = request.args.get('sprint', '')
     filtre_statut = request.args.get('statut', '')
+    filtre_release = request.args.get('release', '')
+    if filtre_release == '0':
+        features = [f for f in features if not f.release_id]
+    elif filtre_release:
+        features = [f for f in features if str(f.release_id) == filtre_release]
+    cal = {c['r'].id: c for c in calendrier_releases(p)}
     prio_rang = {k: i for i, k in enumerate(PRIORITES)}
     blocs = []
     for f in features:
@@ -282,7 +318,7 @@ def backlog():
             st = [s for s in st if str(s.sprint) == filtre_sprint]
         if filtre_statut:
             st = [s for s in st if s.statut == filtre_statut]
-        blocs.append({'f': f, 'stories': st,
+        blocs.append({'f': f, 'stories': st, 'cal': cal.get(f.release_id),
                       'points': sum(s.points or 0 for s in f.stories),
                       'fait': sum(s.points or 0 for s in f.stories if s.statut == 'Fait')})
     toutes = Story.query.all()
@@ -292,8 +328,14 @@ def backlog():
              'non_planifiees': sum(1 for s in toutes if not s.sprint),
              'non_estimees': sum(1 for s in toutes if not s.points)}
     return render_template('backlog.html', blocs=blocs, stats=stats, dod_commune=p.dod_commune,
-                           filtre_sprint=filtre_sprint, filtre_statut=filtre_statut,
+                           filtre_sprint=filtre_sprint, filtre_statut=filtre_statut, filtre_release=filtre_release,
+                           releases=Release.query.order_by(Release.ordre, Release.id).all(),
                            responsables=responsables_connus())
+
+def release_valide(v):
+    try: v = int(v)
+    except (TypeError, ValueError): return None
+    return v if db.session.get(Release, v) else None
 
 @app.route('/feature/ajouter', methods=['POST'])
 @po_requis
@@ -301,7 +343,7 @@ def feature_ajouter():
     nom = request.form.get('nom', '').strip()
     if nom:
         ordre = (db.session.query(db.func.max(Feature.ordre)).scalar() or 0) + 1
-        db.session.add(Feature(nom=nom[:200], release=request.form.get('release', '').strip()[:80], ordre=ordre))
+        db.session.add(Feature(nom=nom[:200], release_id=release_valide(request.form.get('release_id')), ordre=ordre))
         db.session.commit()
     return redirect(url_for('backlog'))
 
@@ -311,7 +353,7 @@ def feature_modifier(fid):
     f = db.get_or_404(Feature, fid)
     nom = request.form.get('nom', '').strip()
     if nom: f.nom = nom[:200]
-    f.release = request.form.get('release', '').strip()[:80]
+    f.release_id = release_valide(request.form.get('release_id'))
     db.session.commit()
     return redirect(url_for('backlog'))
 
@@ -395,7 +437,8 @@ def story(sid):
     i = ordre.index(s.id)
     prec = ordre[i - 1] if i > 0 else None
     suiv = ordre[i + 1] if i < len(ordre) - 1 else None
-    return render_template('story.html', s=s, dod_commune=p.dod_commune, prec=prec, suiv=suiv,
+    cal = next((c for c in calendrier_releases(p) if c['r'].id == s.feature.release_id), None)
+    return render_template('story.html', s=s, dod_commune=p.dod_commune, prec=prec, suiv=suiv, cal=cal,
                            features=Feature.query.order_by(Feature.ordre, Feature.id).all(),
                            responsables=responsables_connus(), dod=s.dod_etat(p.dod_commune))
 
@@ -448,7 +491,7 @@ def kanban():
     debut, fin = dates_sprint(p, n)
     return render_template('kanban.html', n=n, sp=sp, colonnes=colonnes, engage=engage, fait=fait,
                            debut=debut, fin=fin, dod_commune=p.dod_commune,
-                           sprints=resume_sprints(p),
+                           sprints=resume_sprints(p), rel=release_du_sprint(calendrier_releases(p), n),
                            non_planifiees=Story.query.filter_by(sprint=0).count())
 
 @app.route('/api/story/<int:sid>/statut', methods=['POST'])
@@ -477,6 +520,29 @@ def sprints():
         if not est_po():
             flash('Action réservée au Product Owner', 'error'); return redirect(url_for('sprints'))
         fm = request.form
+        if fm.get('section') == 'calendrier':
+            nb = borne(fm.get('nb_sprints'), 1, SPRINTS_MAX, p.nb_sprints)
+            orphelines = Story.query.filter(Story.sprint > nb).count()
+            if orphelines:
+                Story.query.filter(Story.sprint > nb).update({'sprint': 0})
+                flash('{} story(s) des sprints supprimés sont revenues dans le backlog non planifié'.format(orphelines), 'error')
+            p.nb_sprints = nb
+            p.duree_semaines = borne(fm.get('duree_semaines'), DUREE_MIN, DUREE_MAX, p.duree_semaines)
+            try: p.date_debut = date.fromisoformat(fm.get('date_debut', '')).isoformat()
+            except ValueError: pass
+            db.session.commit()
+            synchroniser_sprints(p.nb_sprints)
+            flash('Calendrier enregistré', 'success')
+            return redirect(url_for('sprints'))
+        if fm.get('section') == 'releases':
+            for r in Release.query.all():
+                nom = fm.get('rel_nom_{}'.format(r.id), '').strip()
+                if nom: r.nom = nom[:80]
+                r.nb_sprints = borne(fm.get('rel_nb_{}'.format(r.id)), 1, SPRINTS_MAX, r.nb_sprints)
+                r.objectif = fm.get('rel_obj_{}'.format(r.id), '').strip()
+            db.session.commit()
+            flash('Releases enregistrées', 'success')
+            return redirect(url_for('sprints') + '#releases')
         for s in Sprint.query.filter(Sprint.numero <= p.nb_sprints).all():
             s.objectif = fm.get('objectif_{}'.format(s.numero), '').strip()
             s.capacite = nombre(fm.get('capacite_{}'.format(s.numero)))
@@ -488,8 +554,44 @@ def sprints():
     velocite = round(sum(r['fait'] for r in termines) / len(termines), 1) if termines else None
     prio_rang = {k: i for i, k in enumerate(PRIORITES)}
     np = sorted(Story.query.filter_by(sprint=0).all(), key=lambda s: (prio_rang.get(s.priorite, 9), s.feature.ordre, s.id))
+    cal = calendrier_releases(p)
+    for r in rs: r['release'] = release_du_sprint(cal, r['sprint'].numero)
     return render_template('sprints.html', sprints=rs, non_planifiees=np, velocite=velocite,
-                           nb_termines=len(termines), aujourdhui=date.today())
+                           nb_termines=len(termines), aujourdhui=date.today(), cal=cal,
+                           sprints_releases=sum(c['r'].nb_sprints for c in cal),
+                           SPRINTS_MAX=SPRINTS_MAX, DUREE_MIN=DUREE_MIN, DUREE_MAX=DUREE_MAX)
+
+@app.route('/release/ajouter', methods=['POST'])
+@po_requis
+def release_ajouter():
+    nom = request.form.get('nom', '').strip()
+    if nom:
+        ordre = (db.session.query(db.func.max(Release.ordre)).scalar() or 0) + 1
+        db.session.add(Release(nom=nom[:80], nb_sprints=borne(request.form.get('nb_sprints'), 1, SPRINTS_MAX, 1),
+                               objectif=request.form.get('objectif', '').strip(), ordre=ordre))
+        db.session.commit()
+    return redirect(url_for('sprints') + '#releases')
+
+@app.route('/release/<int:rid>/deplacer/<sens>', methods=['POST'])
+@po_requis
+def release_deplacer(rid, sens):
+    rs = Release.query.order_by(Release.ordre, Release.id).all()
+    i = next((k for k, r in enumerate(rs) if r.id == rid), None)
+    j = i - 1 if sens == 'haut' else i + 1
+    if i is not None and 0 <= j < len(rs):
+        rs[i], rs[j] = rs[j], rs[i]
+        for k, r in enumerate(rs): r.ordre = k
+        db.session.commit()
+    return redirect(url_for('sprints') + '#releases')
+
+@app.route('/release/<int:rid>/supprimer', methods=['POST'])
+@po_requis
+def release_supprimer(rid):
+    r = db.get_or_404(Release, rid)
+    for f in r.features: f.release_id = None
+    db.session.delete(r); db.session.commit()
+    flash('Release « {} » supprimée (ses features sont conservées, sans release)'.format(r.nom), 'success')
+    return redirect(url_for('sprints') + '#releases')
 
 @app.route('/story/<int:sid>/sprint', methods=['POST'])
 @connecte
@@ -507,22 +609,12 @@ def parametres():
         fm = request.form
         p.nom = (fm.get('nom', '').strip() or p.nom)[:200]
         p.vision = fm.get('vision', '').strip()
-        nb = borne(fm.get('nb_sprints'), 1, SPRINTS_MAX, p.nb_sprints)
-        orphelines = Story.query.filter(Story.sprint > nb).count()
-        if orphelines:
-            Story.query.filter(Story.sprint > nb).update({'sprint': 0})
-            flash('{} story(s) des sprints supprimés sont revenues dans le backlog non planifié'.format(orphelines), 'error')
-        p.nb_sprints = nb
-        p.duree_semaines = borne(fm.get('duree_semaines'), DUREE_MIN, DUREE_MAX, p.duree_semaines)
-        try: p.date_debut = date.fromisoformat(fm.get('date_debut', '')).isoformat()
-        except ValueError: pass
         dod = [l.strip()[:200] for l in fm.get('dod_commune', '').splitlines() if l.strip()]
         p.dod_commune_json = json.dumps(dod)
         db.session.commit()
-        synchroniser_sprints(p.nb_sprints)
         flash('Paramètres enregistrés', 'success')
         return redirect(url_for('parametres'))
-    return render_template('parametres.html', SPRINTS_MAX=SPRINTS_MAX, DUREE_MIN=DUREE_MIN, DUREE_MAX=DUREE_MAX)
+    return render_template('parametres.html')
 
 # ---------------------------------------------------------------- Administration
 @app.route('/admin/users')
@@ -558,10 +650,10 @@ def reset_all():
     if request.form.get('confirmation', '').strip().upper() != 'VIDER':
         flash('Tapez VIDER pour confirmer la réinitialisation', 'error')
         return redirect(url_for('admin_users'))
-    Tache.query.delete(); Story.query.delete(); Feature.query.delete()
+    Tache.query.delete(); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     for s in Sprint.query.all(): s.objectif = ''; s.capacite = 0
     db.session.commit()
-    flash('Backlog vidé : features, stories et tâches supprimées', 'success')
+    flash('Backlog vidé : releases, features, stories et tâches supprimées', 'success')
     return redirect(url_for('admin_users'))
 
 if __name__ == '__main__':

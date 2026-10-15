@@ -129,12 +129,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
       <div class="sidebar-section-label">Produit</div>
       <a href="{{ url_for('backlog') }}" class="nav-item {% if request.endpoint in ('backlog','story') %}active{% endif %}"><span class="nav-icon">&#128203;</span> Product backlog</a>
       <a href="{{ url_for('kanban') }}" class="nav-item {% if request.endpoint=='kanban' %}active{% endif %}"><span class="nav-icon">&#128204;</span> Kanban du sprint</a>
-      <a href="{{ url_for('sprints') }}" class="nav-item {% if request.endpoint=='sprints' %}active{% endif %}"><span class="nav-icon">&#128197;</span> Planification des sprints</a>
+      <a href="{{ url_for('sprints') }}" class="nav-item {% if request.endpoint=='sprints' %}active{% endif %}"><span class="nav-icon">&#128197;</span> Releases &amp; sprints</a>
     </div>
     {% if est_po %}
     <div class="sidebar-section">
       <div class="sidebar-section-label">Administration</div>
-      <a href="{{ url_for('parametres') }}" class="nav-item {% if request.endpoint=='parametres' %}active{% endif %}"><span class="nav-icon">&#9881;</span> Paramètres &amp; DoD</a>
+      <a href="{{ url_for('parametres') }}" class="nav-item {% if request.endpoint=='parametres' %}active{% endif %}"><span class="nav-icon">&#9881;</span> Produit &amp; DoD</a>
       <a href="{{ url_for('admin_users') }}" class="nav-item {% if request.endpoint=='admin_users' %}active{% endif %}"><span class="nav-icon">&#128101;</span> Utilisateurs</a>
     </div>
     {% endif %}

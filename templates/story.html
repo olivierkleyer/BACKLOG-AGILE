@@ -34,6 +34,9 @@
 {% block content %}
 <datalist id="resp">{% for r in responsables %}<option value="{{ r }}">{% endfor %}</datalist>
 
+{% if cal and s.sprint and not (cal.s1 <= s.sprint <= cal.s2) %}
+<div class="alert alert-error">Cette story est planifiée au sprint {{ s.sprint }}, en dehors de sa release <b>{{ cal.r.nom }}</b> (sprints {{ cal.s1 }} à {{ cal.s2 }}, fin le {{ cal.fin.strftime('%d/%m/%Y') if cal.fin else '—' }}).</div>
+{% endif %}
 <form id="fiche" method="post" class="fiche">
   <div>
     <div class="card">
@@ -90,7 +93,7 @@
       <div class="field"><label>Sprint</label>
         <select name="sprint">
           <option value="0">Non planifiée</option>
-          {% for i in range(1, projet.nb_sprints+1) %}<option value="{{ i }}" {% if s.sprint==i %}selected{% endif %}>Sprint {{ i }}</option>{% endfor %}
+          {% for i in range(1, projet.nb_sprints+1) %}<option value="{{ i }}" {% if s.sprint==i %}selected{% endif %}>Sprint {{ i }}{% if cal and cal.s1 <= i <= cal.s2 %} · {{ cal.r.nom }}{% endif %}</option>{% endfor %}
         </select></div>
       <button class="btn btn-primary" style="width:100%;justify-content:center">Enregistrer la story</button>
     </div>

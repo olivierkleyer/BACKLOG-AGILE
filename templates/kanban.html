@@ -2,6 +2,7 @@
 {% block title %}Kanban · Sprint {{ n }}{% endblock %}
 {% block page_title %}Kanban du sprint {{ n }}{% endblock %}
 {% block topbar_actions %}
+  {% if rel %}<span class="badge sp">{{ rel.r.nom }} · fin {{ rel.fin.strftime('%d/%m/%Y') if rel.fin else '—' }}</span>{% endif %}
   {% if debut %}<span class="small muted">du {{ debut.strftime('%d/%m/%Y') }} au {{ fin.strftime('%d/%m/%Y') }}</span>{% endif %}
 {% endblock %}
 {% block extra_css %}
