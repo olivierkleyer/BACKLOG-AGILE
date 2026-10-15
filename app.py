@@ -4,7 +4,8 @@ from collections import defaultdict
 from functools import wraps
 from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
-import json, os, secrets
+import json, os, re, secrets
+from sqlalchemy import text
 
 app = Flask(__name__)
 
@@ -23,6 +24,13 @@ for _prefix in ('postgres://', 'postgresql://'):
         break
 app.config['SQLALCHEMY_DATABASE_URI'] = _db_url
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {'pool_pre_ping': True}
+# DB_SCHEMA (facultatif) : range les tables dans un schema PostgreSQL dedie.
+# Permet de partager une base existante (ex : celle de TDB-PROGRAMM) sans melanger les tables.
+DB_SCHEMA = re.sub(r'[^a-z0-9_]', '', os.environ.get('DB_SCHEMA', '').lower())
+if DB_SCHEMA and _db_url.startswith('postgresql'):
+    app.config['SQLALCHEMY_ENGINE_OPTIONS']['connect_args'] = {'options': '-csearch_path={}'.format(DB_SCHEMA)}
+else:
+    DB_SCHEMA = ''
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 app.permanent_session_lifetime = timedelta(hours=2)
@@ -169,6 +177,9 @@ def synchroniser_sprints(n):
     db.session.commit()
 
 def init_db():
+    if DB_SCHEMA:
+        with db.engine.begin() as cx:
+            cx.execute(text('CREATE SCHEMA IF NOT EXISTS "{}"'.format(DB_SCHEMA)))
     db.create_all()
     p = get_projet()
     synchroniser_sprints(p.nb_sprints)

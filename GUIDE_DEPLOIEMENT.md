@@ -26,7 +26,8 @@ backlog_app/
 2. Render → **New Web Service** → connecter le dépôt.
    - Build : `pip install -r requirements.txt`
    - Start : `gunicorn app:app`
-3. Créer une base **PostgreSQL** Render et copier son *Internal Database URL* dans `DATABASE_URL`.
+3. Base de données : copier l'*Internal Database URL* d'une base **PostgreSQL** Render dans `DATABASE_URL`.
+   Render n'autorise qu'une base gratuite par compte : pour réutiliser celle de TDB-PROGRAMM, ajouter `DB_SCHEMA=backlog`.
 4. Variables d'environnement :
 
 | Variable | Rôle |
@@ -35,6 +36,7 @@ backlog_app/
 | `SECRET_KEY` | Chaîne longue et aléatoire |
 | `PO_PASSWORD` | Mot de passe initial du compte `po` |
 | `EQUIPE_PASSWORD` | Mot de passe initial commun de `dev1` à `dev10` |
+| `DB_SCHEMA` | Facultatif. Nom d'un schéma PostgreSQL (ex : `backlog`) pour partager une base existante — par exemple celle de TDB-PROGRAMM — sans mélanger les tables |
 
 Sans `PO_PASSWORD` / `EQUIPE_PASSWORD`, des mots de passe aléatoires sont générés et affichés dans les logs Render.
 
