@@ -63,6 +63,11 @@ table.data-table th.c,table.data-table td.c{text-align:center}
 table.data-table td{padding:8px 10px;border-bottom:1px solid var(--gray-100);vertical-align:middle}
 table.data-table tr:hover td{background:var(--blue-ll)}
 .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+/* Bandeau lecture seule */
+.banner-ro{display:flex;gap:12px;align-items:flex-start;background:var(--blue-ll);border:1px solid #93c5fd;border-left:4px solid var(--blue);color:#1e3a8a;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:18px;font-size:13px;line-height:1.5}
+.banner-ro .ico{font-size:18px;line-height:1}
+.banner-ro a{color:#1e3a8a;font-weight:700}
+.mobile-title small{font-weight:500;opacity:.6;margin-left:6px}
 /* Badges */
 .badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
 .st-A-faire{background:var(--gray-100);color:var(--gray-700)}
@@ -104,6 +109,30 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
   .grid2,.grid4{grid-template-columns:1fr}
   .card{padding:14px}
   input,select,textarea{font-size:16px!important}
+  /* Tableaux en cartes empilees sur telephone */
+  table.cards-mobile,table.cards-mobile tbody,table.cards-mobile tfoot{display:block;width:100%}
+  table.cards-mobile thead{display:none}
+  table.cards-mobile tr{display:flex;flex-direction:column;border:1px solid var(--gray-200);border-radius:10px;padding:6px 12px;margin-bottom:10px;background:white}
+  table.cards-mobile tr:hover td,table.cards-mobile tr:nth-child(even) td{background:none}
+  table.cards-mobile tr.courant{border-color:var(--blue);background:var(--blue-ll)}
+  table.cards-mobile td{display:block;overflow:hidden;border:none;padding:7px 0;text-align:right!important;min-height:34px;line-height:20px}
+  table.cards-mobile td::before{content:attr(data-label);float:left;margin-right:12px;font-size:10px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.6px;text-align:left}
+  table.cards-mobile td[data-label=""]::before{display:none}
+  table.cards-mobile td.card-head{order:-1;text-align:left!important}
+  table.cards-mobile td.card-head::before{display:none}
+  table.cards-mobile:not(.with-head) td:first-child,table.cards-mobile td.card-head{border-bottom:1px solid var(--gray-100);padding-bottom:8px;margin-bottom:2px;font-size:15px}
+  table.cards-mobile td input,table.cards-mobile td select{width:64%!important;min-width:0!important}
+  table.cards-mobile td .charge{display:inline-flex;width:64%;min-width:0}
+  table.cards-mobile td .inline-forms{float:right}
+  /* Backlog : cartes compactes, les attributs s'enchainent en pastilles */
+  table.cards-mobile.with-head tr{flex-direction:row;flex-wrap:wrap;gap:4px 14px;padding:8px 12px 10px}
+  table.cards-mobile.with-head td{flex:none;padding:2px 0;min-height:0;text-align:left!important}
+  table.cards-mobile.with-head td::before{float:none;display:inline;margin-right:5px;font-size:9px}
+  table.cards-mobile.with-head td.card-head{flex:1 1 100%;font-size:14px;margin-bottom:4px}
+  table.cards-mobile.with-head td.m-hide{display:none}
+  table.cards-mobile.with-head td.card-head::before{display:none}
+  table.cards-mobile tfoot tr{background:var(--gray-50)}
+  .banner-ro{font-size:12px;padding:10px 12px}
 }
 @media print{
   .sidebar,.mobile-topbar,.overlay,.topbar-right,.no-print,.alert{display:none!important}
@@ -115,7 +144,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
 </head>
 <body>
 <div class="mobile-topbar">
-  <span class="mobile-title">Backlog Agile</span>
+  <span class="mobile-title">Backlog Agile<small>{{ session.username }} · {{ 'PO' if est_po else 'équipe' }}</small></span>
   <button class="burger" id="burger-btn" aria-label="Menu">&#9776;</button>
 </div>
 <div class="overlay" id="overlay"></div>
@@ -157,11 +186,19 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
           <div class="alert alert-{{ 'success' if category=='success' else 'error' }}">{{ message }}</div>
         {% endfor %}
       {% endwith %}
+      {% if not est_po %}{% block ro_banner %}{% endblock %}{% endif %}
       {% block content %}{% endblock %}
     </div>
   </main>
 </div>
 <script>
+// Tableaux "cartes" : chaque cellule recoit le libelle de sa colonne (affiche sur telephone)
+document.querySelectorAll('table.cards-mobile').forEach(function(t){
+  var heads=[].map.call(t.querySelectorAll('thead th'),function(th){return th.textContent.trim();});
+  t.querySelectorAll('tbody tr, tfoot tr').forEach(function(tr){
+    [].forEach.call(tr.children,function(td,i){ if(!td.hasAttribute('data-label')) td.setAttribute('data-label', heads[i]||''); });
+  });
+});
 document.querySelectorAll('table.data-table').forEach(function(t){
   var p=t.parentElement; if(p.classList.contains('table-scroll')) return;
   var w=document.createElement('div'); w.className='table-scroll'; p.insertBefore(w,t); w.appendChild(t);

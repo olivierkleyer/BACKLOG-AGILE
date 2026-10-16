@@ -92,13 +92,13 @@
   {% endif %}
 
   {% if b.stories %}
-  <table class="data-table">
+  <table class="data-table cards-mobile with-head">
     <thead><tr><th>N°</th><th>User story</th><th class="c">Resp.</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
     <tbody>
     {% for s in b.stories %}{% set d = s.dod_etat(dod_commune) %}
       <tr>
-        <td class="us-id">{{ s.numero() }}</td>
-        <td><a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a></td>
+        <td class="us-id m-hide">{{ s.numero() }}</td>
+        <td class="card-head"><a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a></td>
         <td class="c mono small">{{ s.responsable or '—' }}</td>
         <td class="c"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span></td>
         <td class="c mono">{{ s.points|fmt if s.points else '—' }}{% if s.points %} <span class="muted small">pts</span>{% endif %}</td>

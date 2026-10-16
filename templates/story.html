@@ -31,6 +31,7 @@
 @media(max-width:900px){.fiche{grid-template-columns:1fr}}
 </style>
 {% endblock %}
+{% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. Le titre, la description, les critères d'acceptation et la priorité sont rédigés par le Product Owner. Vous pouvez modifier le statut, le responsable, l'estimation, le sprint, la DoD et les tâches. Pour modifier, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
 {% block content %}
 <datalist id="resp">{% for r in responsables %}<option value="{{ r }}">{% endfor %}</datalist>
 
@@ -41,7 +42,6 @@
   <div>
     <div class="card">
       <div class="card-title">User story</div>
-      {% if not est_po %}<p class="ro-note">Le titre, la description, les critères et la priorité sont rédigés par le Product Owner.</p>{% endif %}
       <div class="grid2">
         <div class="field"><label>Titre</label><input type="text" name="titre" value="{{ s.titre }}" {% if not est_po %}disabled{% endif %} required></div>
         <div class="field"><label>Feature</label>
@@ -113,7 +113,7 @@
 
 <div class="card taches" id="taches">
   <div class="card-title">Tâches de la story</div>
-  <table class="data-table">
+  <table class="data-table cards-mobile">
     <thead><tr><th>Tâche</th><th class="c">Heures</th><th class="c">Resp.</th><th class="c">Statut</th><th></th></tr></thead>
     <tbody>
     {% for t in s.taches %}{% set fid = 'ft' ~ t.id %}

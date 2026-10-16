@@ -33,6 +33,7 @@ tr.courant td{background:var(--blue-ll)}
 @media(max-width:768px){.cal-form{grid-template-columns:1fr}}
 </style>
 {% endblock %}
+{% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. Seul le Product Owner peut modifier le calendrier, les releases, les objectifs et les capacités des sprints. Vous pouvez en revanche affecter les stories non planifiées à un sprint. Pour modifier, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
 {% block content %}
 {# ------------------------------------------------ Calendrier #}
 <div class="card">
@@ -75,7 +76,7 @@ tr.courant td{background:var(--blue-ll)}
   </div>
 
   <form id="f-rel" method="post"><input type="hidden" name="section" value="releases"></form>
-  <table class="data-table">
+  <table class="data-table cards-mobile">
     <thead><tr><th>Release</th><th class="c">Nb sprints</th><th class="c">Sprints</th><th>Début</th><th>Fin</th><th>Objectif</th><th class="c">Stories</th><th>Avancement</th>{% if est_po %}<th></th>{% endif %}</tr></thead>
     <tbody>
     {% for c in cal %}
@@ -124,9 +125,8 @@ tr.courant td{background:var(--blue-ll)}
 
 <div class="card">
   <div class="card-title">Sprints · objectif et capacité</div>
-  {% if not est_po %}<p class="muted small" style="margin:-6px 0 12px">L'objectif et la capacité sont fixés par le Product Owner avec l'équipe en sprint planning.</p>{% endif %}
   <form id="f-sprints" method="post">
-  <table class="data-table">
+  <table class="data-table cards-mobile">
     <thead><tr><th>Sprint</th><th>Release</th><th>Dates</th><th>Objectif du sprint</th><th class="c">Capacité (pts)</th><th class="c">Engagé</th><th>Charge</th><th class="c">Terminé</th><th class="c">Stories</th></tr></thead>
     <tbody>
     {% for r in sprints %}{% set courant = r.debut and r.debut <= aujourdhui <= r.fin %}
