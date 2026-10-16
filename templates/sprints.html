@@ -3,7 +3,12 @@
 {% block page_title %}Planification · releases &amp; sprints{% endblock %}
 {% block extra_css %}
 <style>
-.cal-form{display:grid;grid-template-columns:repeat(3,minmax(0,200px)) auto;gap:14px;align-items:end}
+.cal-form{display:grid;grid-template-columns:repeat(3,minmax(0,200px)) auto;gap:14px;align-items:start}
+.cal-form>.btn{margin-top:19px}
+.cal-fin{font-size:12px;color:var(--gray-700);margin-top:2px}
+.cal-fin b{font-family:'DM Mono',monospace;color:var(--navy)}
+.calc-note{font-size:12px;color:var(--gray-500);margin:-6px 0 12px}
+.calc-note b{color:var(--gray-700)}
 .cal-form .field{margin:0}
 .cal-ro{display:flex;gap:28px;flex-wrap:wrap;font-size:14px}
 .cal-ro b{font-family:'DM Mono',monospace;color:var(--navy)}
@@ -44,7 +49,8 @@ tr.courant td{background:var(--blue-ll)}
     <div class="field"><label>Durée d'un sprint</label>
       <select name="duree_semaines">{% for d in range(DUREE_MIN, DUREE_MAX+1) %}<option value="{{ d }}" {% if d==projet.duree_semaines %}selected{% endif %}>{{ d }} semaine{{ 's' if d>1 }}</option>{% endfor %}</select></div>
     <div class="field"><label>Nombre de sprints (max {{ SPRINTS_MAX }})</label><input type="number" name="nb_sprints" min="1" max="{{ SPRINTS_MAX }}" value="{{ projet.nb_sprints }}" required></div>
-    <div class="field"><label>Début du sprint 1</label><input type="date" name="date_debut" value="{{ projet.date_debut }}"></div>
+    <div class="field"><label>Début du sprint 1</label><input type="date" name="date_debut" value="{{ projet.date_debut }}">
+      <div class="cal-fin" id="cal-fin">Fin du sprint {{ projet.nb_sprints }} : <b>{{ sprints[-1].fin.strftime('%d/%m/%Y') if sprints and sprints[-1].fin else '—' }}</b></div></div>
     <button class="btn btn-primary">Appliquer</button>
   </form>
   {% else %}
@@ -125,9 +131,10 @@ tr.courant td{background:var(--blue-ll)}
 
 <div class="card">
   <div class="card-title">Sprints · objectif et capacité</div>
+  {% if est_po %}<p class="calc-note"><b>Objectif</b> et <b>capacité</b> : saisis par le PO. <b>Engagé</b>, <b>charge</b> et <b>terminé</b> : calculés automatiquement à partir des stories affectées au sprint et de leur statut.</p>{% endif %}
   <form id="f-sprints" method="post">
   <table class="data-table cards-mobile">
-    <thead><tr><th>Sprint</th><th>Release</th><th>Dates</th><th>Objectif du sprint</th><th class="c">Capacité (pts)</th><th class="c">Engagé</th><th>Charge</th><th class="c">Terminé</th><th class="c">Stories</th></tr></thead>
+    <thead><tr><th>Sprint</th><th>Release</th><th>Dates</th><th>Objectif du sprint</th><th class="c">Capacité (pts)</th><th class="c" title="Somme des points des stories affectées au sprint (calculé)">Engagé</th><th title="Engagé / capacité (calculé)">Charge</th><th class="c" title="Points des stories au statut Fait (calculé)">Terminé</th><th class="c">Stories</th></tr></thead>
     <tbody>
     {% for r in sprints %}{% set courant = r.debut and r.debut <= aujourdhui <= r.fin %}
       <tr class="{{ 'courant' if courant }}">
@@ -165,4 +172,22 @@ tr.courant td{background:var(--blue-ll)}
   <p class="muted small">Toutes les stories sont planifiées.</p>
   {% endfor %}
 </div>
+{% endblock %}
+{% block scripts %}
+{% if est_po %}
+<script>
+// Fin du dernier sprint recalculee pendant la saisie (avant de cliquer sur Appliquer)
+(function(){
+  var f=document.querySelector('.cal-form'), out=document.getElementById('cal-fin');
+  function maj(){
+    var d=f.date_debut.value, n=parseInt(f.nb_sprints.value,10), w=parseInt(f.duree_semaines.value,10);
+    if(!d||!n||n<1){ out.innerHTML='Fin du dernier sprint : <b>—</b>'; return; }
+    var p=d.split('-'), fin=new Date(+p[0], +p[1]-1, +p[2] + n*w*7 - 1);
+    var j=('0'+fin.getDate()).slice(-2), m=('0'+(fin.getMonth()+1)).slice(-2);
+    out.innerHTML='Fin du sprint '+n+' : <b>'+j+'/'+m+'/'+fin.getFullYear()+'</b>';
+  }
+  ['input','change'].forEach(function(e){ f.addEventListener(e,maj); });
+})();
+</script>
+{% endif %}
 {% endblock %}
