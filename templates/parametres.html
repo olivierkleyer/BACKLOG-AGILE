@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
 {% block title %}Paramètres{% endblock %}
-{% block page_title %}Paramètres du produit &amp; DoD commune{% endblock %}
+{% block page_title %}Produit, DoR &amp; DoD{% endblock %}
 {% block topbar_actions %}<button class="btn btn-primary btn-sm" form="f-param">Enregistrer</button>{% endblock %}
 {% block content %}
 <form id="f-param" method="post">
@@ -14,7 +14,17 @@
   <p class="small">La durée des sprints, leur nombre, la date de début et les releases se règlent dans <a href="{{ url_for('sprints') }}">Planification · releases &amp; sprints</a>.</p>
 </div>
 <div class="card">
-  <div class="card-title">Définition du Fini commune à l'équipe</div>
+  <div class="card-title">Definition of Ready (avant le sprint)</div>
+  <div class="field" style="margin-bottom:6px"><label>Un critère par ligne</label>
+    <textarea name="dor_commune" rows="6">{{ projet.dor_commune|join('\n') }}</textarea></div>
+  <label style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 14px;font-size:13px;cursor:pointer">
+    <input type="checkbox" name="dor_bloquante" {% if projet.dor_bloquante %}checked{% endif %} style="width:18px;height:18px;margin-top:1px;accent-color:var(--blue)">
+    <span><b>DoR bloquante</b> — une story ne peut être affectée à un sprint que si tous ses critères de DoR sont cochés.
+    <span class="muted">Les stories déjà planifiées restent en place.</span></span></label>
+  <p class="muted small">Ces critères apparaissent sur chaque fiche story. Le PO et l'équipe les cochent ensemble, en affinage du backlog.</p>
+</div>
+<div class="card">
+  <div class="card-title">Définition du Fini (après le travail)</div>
   <div class="field" style="margin-bottom:6px"><label>Un critère par ligne</label>
     <textarea name="dod_commune" rows="7">{{ projet.dod_commune|join('\n') }}</textarea></div>
   <label style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 14px;font-size:13px;cursor:pointer">

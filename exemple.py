@@ -24,6 +24,24 @@ DOD_COMMUNE = [
     'Documentation utilisateur mise à jour',
 ]
 
+DOR_COMMUNE = [
+    'Rédigée au format « En tant que… j\'ai besoin de… pour… »',
+    "Critères d'acceptation définis",
+    "Estimée par l'équipe",
+    'Assez petite pour tenir dans un sprint',
+    'Dépendances identifiées',
+]
+
+def dor_cochee(criteres, points, sprint):
+    """Etat de depart de la DoR : les stories deja planifiees sont pretes,
+    les autres ne cochent que ce qui est vrai (redigee, criteres ecrits, estimee)."""
+    if sprint:
+        return list(DOR_COMMUNE)
+    ok = [DOR_COMMUNE[0]]
+    if criteres: ok.append(DOR_COMMUNE[1])
+    if points: ok.append(DOR_COMMUNE[2])
+    return ok
+
 RELEASES = [
     {'nom': 'R1 – Premier robot au rang', 'nb_sprints': 3,
      'objectif': 'Un robot récolte seul une parcelle cartographiée, en sécurité, sous la supervision d’un opérateur.'},

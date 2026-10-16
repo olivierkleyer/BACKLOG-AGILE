@@ -40,6 +40,13 @@ STATUTS = ['A faire', 'En cours', 'Fait']
 PRIORITES = ['P1', 'P2', 'P3']
 SPRINTS_MAX = 20
 DUREE_MIN, DUREE_MAX = 1, 6
+DOR_COMMUNE_DEFAUT = [
+    'Rédigée au format « En tant que… j\'ai besoin de… pour… »',
+    "Critères d'acceptation définis",
+    "Estimée par l'équipe",
+    'Assez petite pour tenir dans un sprint',
+    'Dépendances identifiées',
+]
 DOD_COMMUNE_DEFAUT = [
     'Code relu par un pair',
     'Tests unitaires écrits et passants',
@@ -90,9 +97,13 @@ class Projet(db.Model):
     date_debut = db.Column(db.String(10), default='')     # AAAA-MM-JJ
     dod_commune_json = db.Column(db.Text, default='[]')
     dod_bloquante = db.Column(db.Boolean, default=True)    # une story ne passe en Fait que si sa DoD est complete
+    dor_commune_json = db.Column(db.Text, default='[]')
+    dor_bloquante = db.Column(db.Boolean, default=True)    # une story n'entre dans un sprint que si elle est prete
 
     @property
     def dod_commune(self): return lire_json(self.dod_commune_json, [])
+    @property
+    def dor_commune(self): return lire_json(self.dor_commune_json, [])
 
 class Sprint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -133,6 +144,7 @@ class Story(db.Model):
     sprint = db.Column(db.Integer, default=0)              # 0 = non planifiee
     dod_json = db.Column(db.Text, default='[]')            # DoD specifique [{label, ok}]
     dod_commune_ok_json = db.Column(db.Text, default='[]') # libelles de la DoD commune coches
+    dor_ok_json = db.Column(db.Text, default='[]')         # libelles de la DoR cochés
     ordre = db.Column(db.Integer, default=0)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     taches = db.relationship('Tache', backref='story', cascade='all, delete-orphan', lazy=True,
@@ -145,6 +157,17 @@ class Story(db.Model):
 
     def heures(self): return sum(t.heures or 0 for t in self.taches)
     def heures_restantes(self): return sum(t.heures or 0 for t in self.taches if t.statut != 'Fait')
+
+    @property
+    def dor_ok(self): return lire_json(self.dor_ok_json, [])
+
+    def dor_etat(self, dor_commune):
+        ok = set(self.dor_ok)
+        return sum(1 for l in dor_commune if l in ok), len(dor_commune)
+
+    def est_prete(self, dor_commune):
+        f, t = self.dor_etat(dor_commune)
+        return f == t
 
     def dod_etat(self, dod_commune):
         """(cases cochees, cases totales) sur DoD commune + DoD specifique"""
@@ -169,7 +192,8 @@ class Tache(db.Model):
 def get_projet():
     p = Projet.query.first()
     if not p:
-        p = Projet(dod_commune_json=json.dumps(DOD_COMMUNE_DEFAUT), date_debut=date.today().isoformat())
+        p = Projet(dod_commune_json=json.dumps(DOD_COMMUNE_DEFAUT), dor_commune_json=json.dumps(DOR_COMMUNE_DEFAUT),
+                   date_debut=date.today().isoformat())
         db.session.add(p); db.session.commit()
     return p
 
@@ -327,6 +351,16 @@ def changer_statut_story(s, nouveau, p):
     s.statut = nouveau
     return None
 
+def affecter_sprint(s, n, p):
+    """Affecte une story a un sprint (0 = backlog) en appliquant la DoR bloquante. Renvoie une erreur ou None."""
+    if n and n != s.sprint and p.dor_bloquante and not s.est_prete(p.dor_commune):
+        f, t = s.dor_etat(p.dor_commune)
+        return "« {} » n'est pas prête (Definition of Ready {}/{}) : elle ne peut pas entrer dans un sprint.".format(s.titre, f, t)
+    if s.statut == 'Fait' and n != s.sprint:
+        s.fait_jour = jour_du_sprint(n)
+    s.sprint = n
+    return None
+
 def changer_statut_tache(t, nouveau):
     nouveau = statut_ok(nouveau)
     if nouveau == 'Fait' and t.statut != 'Fait':
@@ -392,7 +426,7 @@ def backlog():
              'fait': sum(s.points or 0 for s in toutes if s.statut == 'Fait'),
              'non_planifiees': sum(1 for s in toutes if not s.sprint),
              'non_estimees': sum(1 for s in toutes if not s.points)}
-    return render_template('backlog.html', blocs=blocs, stats=stats, dod_commune=p.dod_commune,
+    return render_template('backlog.html', blocs=blocs, stats=stats, dod_commune=p.dod_commune, dor_commune=p.dor_commune,
                            filtre_sprint=filtre_sprint, filtre_statut=filtre_statut, filtre_release=filtre_release,
                            releases=Release.query.order_by(Release.ordre, Release.id).all(),
                            responsables=responsables_connus())
@@ -473,10 +507,8 @@ def story(sid):
             if fid and db.session.get(Feature, fid): s.feature_id = fid
         s.responsable = fm.get('responsable', '').strip().upper()[:40]
         s.points = nombre(fm.get('points'))
-        ancien_sprint = s.sprint
-        s.sprint = borne(fm.get('sprint'), 0, p.nb_sprints, 0)
-        if s.statut == 'Fait' and s.sprint != ancien_sprint:
-            s.fait_jour = jour_du_sprint(s.sprint)
+        s.dor_ok_json = json.dumps([l for i, l in enumerate(p.dor_commune) if fm.get('dorc_{}'.format(i))])
+        erreur_dor = affecter_sprint(s, borne(fm.get('sprint'), 0, p.nb_sprints, 0), p)
         # DoD commune : cases cochees
         s.dod_commune_ok_json = json.dumps([l for i, l in enumerate(p.dod_commune) if fm.get('dodc_{}'.format(i))])
         # DoD specifique : libelles + cases
@@ -492,8 +524,8 @@ def story(sid):
         s.updated_at = datetime.utcnow()
         db.session.commit()
         fait, total = s.dod_etat(p.dod_commune)
-        if erreur:
-            flash(erreur + ' Les autres modifications sont enregistrées.', 'error')
+        if erreur or erreur_dor:
+            flash(' '.join(e for e in (erreur_dor, erreur) if e) + ' Les autres modifications sont enregistrées.', 'error')
         elif s.statut == 'Fait' and fait < total:
             flash('Story enregistrée en « Fait » alors que la Définition du Fini n\'est pas complète ({}/{})'.format(fait, total), 'error')
         else:
@@ -510,7 +542,8 @@ def story(sid):
     cal = next((c for c in calendrier_releases(p) if c['r'].id == s.feature.release_id), None)
     return render_template('story.html', s=s, dod_commune=p.dod_commune, prec=prec, suiv=suiv, cal=cal,
                            features=Feature.query.order_by(Feature.ordre, Feature.id).all(),
-                           responsables=responsables_connus(), dod=s.dod_etat(p.dod_commune))
+                           responsables=responsables_connus(), dod=s.dod_etat(p.dod_commune),
+                           dor_commune=p.dor_commune, dor=s.dor_etat(p.dor_commune))
 
 @app.route('/story/<int:sid>/supprimer', methods=['POST'])
 @po_requis
@@ -642,7 +675,8 @@ def sprints():
     np = sorted(Story.query.filter_by(sprint=0).all(), key=lambda s: (prio_rang.get(s.priorite, 9), s.feature.ordre, s.id))
     cal = calendrier_releases(p)
     for r in rs: r['release'] = release_du_sprint(cal, r['sprint'].numero)
-    return render_template('sprints.html', sprints=rs, non_planifiees=np, velocite=velocite,
+    return render_template('sprints.html', sprints=rs, non_planifiees=np, velocite=velocite, dor_commune=p.dor_commune,
+                           dor_bloquante=p.dor_bloquante,
                            nb_termines=len(termines), aujourdhui=date.today(), cal=cal,
                            sprints_releases=sum(c['r'].nb_sprints for c in cal),
                            SPRINTS_MAX=SPRINTS_MAX, DUREE_MIN=DUREE_MIN, DUREE_MAX=DUREE_MAX)
@@ -683,7 +717,10 @@ def release_supprimer(rid):
 @connecte
 def story_sprint(sid):
     s = db.get_or_404(Story, sid)
-    s.sprint = borne(request.form.get('sprint'), 0, get_projet().nb_sprints, 0)
+    p = get_projet()
+    erreur = affecter_sprint(s, borne(request.form.get('sprint'), 0, p.nb_sprints, 0), p)
+    if erreur:
+        flash(erreur + ' Complétez sa DoR sur la fiche story.', 'error')
     db.session.commit()
     return redirect(url_for('sprints') + '#non-planifiees')
 
@@ -698,6 +735,8 @@ def parametres():
         dod = [l.strip()[:200] for l in fm.get('dod_commune', '').splitlines() if l.strip()]
         p.dod_commune_json = json.dumps(dod)
         p.dod_bloquante = bool(fm.get('dod_bloquante'))
+        p.dor_commune_json = json.dumps([l.strip()[:200] for l in fm.get('dor_commune', '').splitlines() if l.strip()])
+        p.dor_bloquante = bool(fm.get('dor_bloquante'))
         db.session.commit()
         flash('Paramètres enregistrés', 'success')
         return redirect(url_for('parametres'))
@@ -758,6 +797,7 @@ def charger_exemple():
     lundi = date.today() - timedelta(days=date.today().weekday())
     p.date_debut = lundi.isoformat()
     p.dod_commune_json = json.dumps(ex.DOD_COMMUNE)
+    p.dor_commune_json = json.dumps(ex.DOR_COMMUNE)
     db.session.commit()
     synchroniser_sprints(p.nb_sprints)
     for sp in Sprint.query.all():
@@ -774,7 +814,8 @@ def charger_exemple():
         for k, (titre, qui, besoin, pour, crit, prio, pts, spr, dod, taches) in enumerate(f['stories']):
             st = Story(feature_id=feat.id, titre=titre, en_tant_que=qui, besoin=besoin, pour=pour, criteres=crit,
                        priorite=prio, points=pts, sprint=spr, ordre=k,
-                       dod_json=json.dumps([{'label': l, 'ok': False} for l in dod]))
+                       dod_json=json.dumps([{'label': l, 'ok': False} for l in dod]),
+                       dor_ok_json=json.dumps(ex.dor_cochee(crit, pts, spr)))
             db.session.add(st); db.session.flush()
             for t, h in taches:
                 db.session.add(Tache(story_id=st.id, titre=t, heures=h))

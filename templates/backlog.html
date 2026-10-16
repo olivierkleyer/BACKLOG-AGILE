@@ -93,7 +93,7 @@
 
   {% if b.stories %}
   <table class="data-table cards-mobile with-head">
-    <thead><tr><th>N°</th><th>User story</th><th class="c">Resp.</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
+    <thead><tr><th>N°</th><th>User story</th><th class="c">Resp.</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c" title="Definition of Ready : critères cochés / total">DoR</th><th class="c" title="Définition du Fini : critères cochés / total">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
     <tbody>
     {% for s in b.stories %}{% set d = s.dod_etat(dod_commune) %}
       <tr>
@@ -103,6 +103,7 @@
         <td class="c"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span></td>
         <td class="c mono">{{ s.points|fmt if s.points else '—' }}{% if s.points %} <span class="muted small">pts</span>{% endif %}</td>
         <td class="c small">{% if s.taches %}{{ s.taches|length }} · <span class="mono">{{ s.heures()|fmt }} h</span>{% else %}<span class="muted">—</span>{% endif %}</td>
+        {% set r = s.dor_etat(dor_commune) %}<td class="c small mono"{% if r[1] and r[0]==r[1] %} style="color:var(--blue);font-weight:700" title="Prête"{% endif %}>{{ r[0] }}/{{ r[1] }}</td>
         <td class="c small mono"{% if d[1] and d[0]==d[1] %} style="color:var(--green);font-weight:700"{% endif %}>{{ d[0] }}/{{ d[1] }}</td>
         <td class="c"><span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span></td>
         <td class="c">{% if s.sprint %}<span class="badge sp">S{{ s.sprint }}</span>{% else %}<span class="badge sp-0">—</span>{% endif %}</td>

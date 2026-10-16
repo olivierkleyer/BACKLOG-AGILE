@@ -20,6 +20,11 @@
 .dod-list .lab{font-size:13px}
 .dod-sub{font-size:10px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 6px}
 .dod-sub:first-of-type{margin-top:0}
+.aide{font-size:12px;color:var(--gray-500);margin:-8px 0 12px}
+.dod-list li.ok.dor{background:var(--blue-ll);border-color:#bfdbfe}
+.dor input[type=checkbox]{accent-color:var(--blue)}
+.pret{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px}
+.pret.oui{background:var(--blue-light);color:#1e40af}.pret.non{background:var(--amber-light);color:#92400e}
 .dod-score{font-family:'DM Mono',monospace;font-weight:700}
 .side .field{margin-bottom:12px}
 .taches td input,.taches td select{padding:6px 8px;font-size:12px}
@@ -59,9 +64,25 @@
 
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between">
+        <span>Definition of Ready</span>
+        <span class="dod-score" style="color:{{ 'var(--blue)' if dor[1] and dor[0]==dor[1] else 'var(--gray-500)' }}">{{ dor[0] }} / {{ dor[1] }}</span>
+      </div>
+      <p class="aide">Avant le sprint : les conditions pour que la story puisse entrer dans un sprint.{% if projet.dor_bloquante %} Tant qu'elle n'est pas prête, elle ne peut pas être planifiée.{% endif %}</p>
+      {% if dor_commune %}
+      <ul class="dod-list">
+        {% for l in dor_commune %}
+        <li class="dor {% if l in s.dor_ok %}ok{% endif %}"><input type="checkbox" name="dorc_{{ loop.index0 }}" id="dr{{ loop.index0 }}" {% if l in s.dor_ok %}checked{% endif %}><label class="lab" for="dr{{ loop.index0 }}">{{ l }}</label></li>
+        {% endfor %}
+      </ul>
+      {% else %}<p class="muted small">Aucune DoR définie{% if est_po %} — <a href="{{ url_for('parametres') }}">la définir</a>{% endif %}.</p>{% endif %}
+    </div>
+
+    <div class="card">
+      <div class="card-title" style="display:flex;justify-content:space-between">
         <span>Définition du Fini</span>
         <span class="dod-score" style="color:{{ 'var(--green)' if dod[1] and dod[0]==dod[1] else 'var(--gray-500)' }}">{{ dod[0] }} / {{ dod[1] }}</span>
       </div>
+      <p class="aide">Après le travail : les conditions pour déclarer la story « Fait ».</p>
       <div class="dod-sub">DoD commune à l'équipe</div>
       {% if dod_commune %}
       <ul class="dod-list">
@@ -94,7 +115,8 @@
         <select name="sprint">
           <option value="0">Non planifiée</option>
           {% for i in range(1, projet.nb_sprints+1) %}<option value="{{ i }}" {% if s.sprint==i %}selected{% endif %}>Sprint {{ i }}{% if cal and cal.s1 <= i <= cal.s2 %} · {{ cal.r.nom }}{% endif %}</option>{% endfor %}
-        </select></div>
+        </select>
+        {% if dor[1] %}<span class="pret {{ 'oui' if dor[0]==dor[1] else 'non' }}">{{ 'Prête pour un sprint' if dor[0]==dor[1] else 'Pas prête (DoR ' ~ dor[0] ~ '/' ~ dor[1] ~ ')' }}</span>{% endif %}</div>
       <button class="btn btn-primary" style="width:100%;justify-content:center">Enregistrer la story</button>
     </div>
     <div class="card small muted">
@@ -113,6 +135,7 @@
 
 <div class="card taches" id="taches">
   <div class="card-title">Tâches de la story</div>
+  <p class="aide">Pendant le sprint : le découpage du travail, chiffré en heures (burndown en heures).</p>
   <table class="data-table cards-mobile">
     <thead><tr><th>Tâche</th><th class="c">Heures</th><th class="c">Resp.</th><th class="c">Statut</th><th></th></tr></thead>
     <tbody>
