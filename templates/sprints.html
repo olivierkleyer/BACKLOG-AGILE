@@ -94,7 +94,7 @@ tr.courant td{background:var(--blue-ll)}
         <td class="small" style="white-space:nowrap">{{ c.debut.strftime('%d/%m/%Y') if c.debut else '—' }}</td>
         <td class="small" style="white-space:nowrap;font-weight:700{{ ';color:var(--red)' if c.depasse }}">{{ c.fin.strftime('%d/%m/%Y') if c.fin else '—' }}</td>
         <td>{% if est_po %}<input form="f-rel" class="rel-obj" type="text" name="rel_obj_{{ c.r.id }}" value="{{ c.r.objectif }}" placeholder="Objectif de la release…">{% else %}<span class="small">{{ c.r.objectif or '—' }}</span>{% endif %}</td>
-        <td class="c">{{ c.nb_stories }}{% if c.hors %} <span class="badge pr-P1" title="Stories planifiées dans un sprint hors de la release">{{ c.hors|length }} hors</span>{% endif %}</td>
+        <td class="c"><a href="{{ url_for('backlog', release=c.r.id) }}" title="Voir et créer les features et stories de cette release">{{ c.nb_stories }} &rarr;</a>{% if c.hors %} <span class="badge pr-P1" title="Stories planifiées dans un sprint hors de la release">{{ c.hors|length }} hors</span>{% endif %}</td>
         <td><div class="charge"><div class="progress"><span style="width:{{ c.pct }}%"></span></div><span class="small mono">{{ c.fait|fmt }}/{{ c.points|fmt }} pts</span></div></td>
         {% if est_po %}
         <td class="c" style="white-space:nowrap"><span class="inline-forms">

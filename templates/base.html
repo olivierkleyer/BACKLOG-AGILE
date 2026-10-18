@@ -67,6 +67,21 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .banner-ro{display:flex;gap:12px;align-items:flex-start;background:var(--blue-ll);border:1px solid #93c5fd;border-left:4px solid var(--blue);color:#1e3a8a;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:18px;font-size:13px;line-height:1.5}
 .banner-ro .ico{font-size:18px;line-height:1}
 .banner-ro a{color:#1e3a8a;font-weight:700}
+/* Fil conducteur */
+.parcours{background:white;border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:var(--shadow);padding:14px 18px;margin-bottom:20px}
+.parcours-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:10px}
+.parcours-head .card-title{margin:0}
+.parcours-steps{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.pstep{display:inline-flex;align-items:center;gap:6px;padding:5px 10px 5px 5px;border-radius:99px;font-size:12px;font-weight:600;text-decoration:none;color:var(--gray-500);background:var(--gray-100);border:1px solid transparent}
+.pstep b{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;background:white;font-size:11px;color:var(--gray-500)}
+.pstep.ok{color:var(--green);background:var(--green-light)}
+.pstep.ok b{background:var(--green);color:white}
+.pstep.cur{color:var(--blue);background:var(--blue-ll);border-color:var(--blue)}
+.pstep.cur b{background:var(--blue);color:white}
+.parcours-next{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px}
+.parcours-next .who{font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.6px;margin-right:6px}
+.parcours.ferme .parcours-steps,.parcours.ferme .parcours-next{display:none}
+.parcours.ferme{padding:10px 18px}
 .mobile-title small{font-weight:500;opacity:.6;margin-left:6px}
 /* Badges */
 .badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
@@ -156,9 +171,9 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
     </div>
     <div class="sidebar-section">
       <div class="sidebar-section-label">Produit</div>
-      <a href="{{ url_for('backlog') }}" class="nav-item {% if request.endpoint in ('backlog','story') %}active{% endif %}"><span class="nav-icon">&#128203;</span> Product backlog</a>
-      <a href="{{ url_for('kanban') }}" class="nav-item {% if request.endpoint=='kanban' %}active{% endif %}"><span class="nav-icon">&#128204;</span> Kanban du sprint</a>
-      <a href="{{ url_for('sprints') }}" class="nav-item {% if request.endpoint=='sprints' %}active{% endif %}"><span class="nav-icon">&#128197;</span> Releases &amp; sprints</a>
+      <a href="{{ url_for('sprints') }}" class="nav-item {% if request.endpoint=='sprints' %}active{% endif %}"><span class="nav-icon">&#128197;</span> 1 · Releases &amp; sprints</a>
+      <a href="{{ url_for('backlog') }}" class="nav-item {% if request.endpoint in ('backlog','story') %}active{% endif %}"><span class="nav-icon">&#128203;</span> 2 · Product backlog</a>
+      <a href="{{ url_for('kanban') }}" class="nav-item {% if request.endpoint=='kanban' %}active{% endif %}"><span class="nav-icon">&#128204;</span> 3 · Kanban du sprint</a>
     </div>
     {% if est_po %}
     <div class="sidebar-section">
@@ -187,6 +202,19 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
         {% endfor %}
       {% endwith %}
       {% if not est_po %}{% block ro_banner %}{% endblock %}{% endif %}
+      {% if parcours.courante and request.endpoint in ('backlog','sprints','kanban','story') %}{% set c = parcours.courante %}
+      <div class="parcours no-print" id="parcours">
+        <div class="parcours-head"><div class="card-title">Mise en route · étape {{ c.n }} sur 6</div>
+          <button type="button" class="btn-link" id="parcours-toggle">Masquer</button></div>
+        <div class="parcours-steps">
+          {% for e in parcours.etapes %}<a class="pstep {{ 'ok' if e.ok else ('cur' if e.n == c.n else '') }}" href="{{ e.lien }}"><b>{{ '✓' if e.ok else e.n }}</b>{{ e.nom }}</a>{% endfor %}
+        </div>
+        <div class="parcours-next">
+          <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}</div>
+          {% if est_po or not c.po %}<a class="btn btn-primary btn-sm" href="{{ c.lien }}">{{ c.bouton }} &rarr;</a>{% endif %}
+        </div>
+      </div>
+      {% endif %}
       {% block content %}{% endblock %}
     </div>
   </main>
@@ -203,6 +231,10 @@ document.querySelectorAll('table.data-table').forEach(function(t){
   var p=t.parentElement; if(p.classList.contains('table-scroll')) return;
   var w=document.createElement('div'); w.className='table-scroll'; p.insertBefore(w,t); w.appendChild(t);
 });
+(function(){ var p=document.getElementById('parcours'), b=document.getElementById('parcours-toggle'); if(!p) return;
+  var ferme=false; try{ ferme=localStorage.getItem('parcours-ferme')==='1'; }catch(e){}
+  function maj(){ p.classList.toggle('ferme',ferme); b.textContent=ferme?'Afficher':'Masquer'; }
+  b.onclick=function(){ ferme=!ferme; try{ localStorage.setItem('parcours-ferme',ferme?'1':'0'); }catch(e){} maj(); }; maj(); })();
 var sb=document.getElementById('sidebar'), ov=document.getElementById('overlay');
 document.getElementById('burger-btn').onclick=function(){sb.classList.toggle('open');ov.classList.toggle('open');};
 ov.onclick=function(){sb.classList.remove('open');ov.classList.remove('open');};

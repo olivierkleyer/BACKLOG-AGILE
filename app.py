@@ -255,7 +255,36 @@ def est_po(): return session.get('role') == 'po'
 def contexte():
     if 'user_id' not in session: return {}
     p = get_projet()
-    return {'projet': p, 'est_po': est_po(), 'STATUTS': STATUTS, 'PRIORITES': PRIORITES}
+    return {'projet': p, 'est_po': est_po(), 'STATUTS': STATUTS, 'PRIORITES': PRIORITES,
+            'parcours': parcours(p)}
+
+def parcours(p):
+    """Fil conducteur : les 6 etapes du PO et de l'equipe, avec la prochaine action."""
+    stories = Story.query.all()
+    pretes = [s for s in stories if s.points and s.est_prete(p.dor_commune)]
+    a_affiner = next((s for s in stories if not (s.points and s.est_prete(p.dor_commune))), None)
+    etapes = [
+        {'n': 1, 'nom': 'Releases', 'ok': Release.query.count() > 0, 'po': True,
+         'action': 'Créez une release et indiquez son nombre de sprints.',
+         'lien': url_for('sprints') + '#releases', 'bouton': 'Créer une release'},
+        {'n': 2, 'nom': 'Features', 'ok': Feature.query.count() > 0, 'po': True,
+         'action': 'Créez une feature et rattachez-la à une release.',
+         'lien': url_for('backlog') + '#nouvelle-feature', 'bouton': 'Créer une feature'},
+        {'n': 3, 'nom': 'User stories', 'ok': len(stories) > 0, 'po': True,
+         'action': 'Ajoutez des user stories dans une feature (champ « Nouvelle user story » sous la feature).',
+         'lien': url_for('backlog'), 'bouton': 'Ajouter des stories'},
+        {'n': 4, 'nom': 'Estimer et rendre prêtes', 'ok': len(pretes) > 0, 'po': False,
+         'action': "Ouvrez chaque story : estimez-la en points et cochez sa Definition of Ready.",
+         'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'), 'bouton': 'Affiner une story'},
+        {'n': 5, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
+         'action': 'Affectez les stories prêtes à un sprint (liste « Affecter à… »).',
+         'lien': url_for('sprints') + '#non-planifiees', 'bouton': 'Planifier'},
+        {'n': 6, 'nom': 'Jouer le sprint', 'ok': any(s.statut != 'A faire' for s in stories if s.sprint), 'po': False,
+         'action': 'Faites avancer les cartes sur le Kanban ; le PO avance le jour après chaque daily.',
+         'lien': url_for('kanban'), 'bouton': 'Ouvrir le Kanban'},
+    ]
+    courante = next((e for e in etapes if not e['ok']), None)
+    return {'etapes': etapes, 'courante': courante}
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():

@@ -112,7 +112,7 @@
     </tbody>
   </table>
   {% elif not (filtre_sprint or filtre_statut) %}
-  <div class="vide">Aucune story dans cette feature.</div>
+  <div class="vide">Aucune story dans cette feature.{% if est_po %} Ajoutez-en une avec le champ « Nouvelle user story » ci-dessous.{% endif %}</div>
   {% else %}
   <div class="vide">Aucune story ne correspond aux filtres.</div>
   {% endif %}
@@ -129,11 +129,11 @@
 {% endfor %}
 
 {% if est_po %}
-<div class="card no-print">
+<div class="card no-print" id="nouvelle-feature">
   <div class="card-title">Nouvelle feature</div>
   <form method="post" action="{{ url_for('feature_ajouter') }}" style="display:flex;gap:10px;flex-wrap:wrap">
     <input type="text" name="nom" placeholder="Nom de la feature (ex : Gestion du parcours de vendange)" required style="flex:2;min-width:240px">
-    <select name="release_id" style="flex:1;min-width:160px"><option value="">Sans release</option>{% for r in releases %}<option value="{{ r.id }}">{{ r.nom }}</option>{% endfor %}</select>
+    <select name="release_id" style="flex:1;min-width:160px"><option value="">Sans release</option>{% for r in releases %}<option value="{{ r.id }}" {% if filtre_release==r.id|string or (releases|length==1) %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}</select>
     <button class="btn btn-success">+ Feature</button>
   </form>
 </div>
