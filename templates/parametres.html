@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Paramètres{% endblock %}
 {% block page_title %}Produit, DoR &amp; DoD{% endblock %}
-{% block topbar_actions %}<button class="btn btn-primary btn-sm" form="f-param">Enregistrer</button>{% endblock %}
+{% block topbar_actions %}{% if request.args.get('retour','').startswith('/story/') %}<a class="btn btn-ghost btn-sm" href="{{ request.args.get('retour') }}">&#8592; Retour à la story</a>{% endif %}<button class="btn btn-primary btn-sm" form="f-param">Enregistrer</button>{% endblock %}
 {% block content %}
 <form id="f-param" method="post">
 <div class="card">

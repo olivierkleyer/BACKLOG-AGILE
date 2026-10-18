@@ -25,6 +25,11 @@
 .aide{font-size:12px;color:var(--gray-500);margin:-8px 0 12px}
 .regle{font-size:12px;color:#1e3a8a;background:var(--blue-ll);border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.45}
 .regle a{color:#1e3a8a;font-weight:700}
+.btn-crit{border:1.5px solid var(--blue);color:var(--blue);background:white;border-radius:8px;padding:4px 10px;font:600 12px 'DM Sans',sans-serif;cursor:pointer;text-transform:none;letter-spacing:0}
+.btn-crit:hover{background:var(--blue-ll)}
+.crit-edit{border:1.5px solid var(--blue);border-radius:10px;padding:12px;margin-bottom:12px;background:var(--blue-ll)}
+.crit-edit textarea{min-height:120px;background:white}
+.crit-edit .acts{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:8px}
 .dod-list li.ok.dor{background:var(--blue-ll);border-color:#bfdbfe}
 .dor input[type=checkbox]{accent-color:var(--blue)}
 .pret{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px}
@@ -116,10 +121,20 @@
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between">
         <span>Definition of Ready</span>
-        <span class="dod-score" style="color:{{ 'var(--blue)' if dor[1] and dor[0]==dor[1] else 'var(--gray-500)' }}">{{ dor[0] }} / {{ dor[1] }}</span>
+        <span style="display:flex;gap:10px;align-items:center">{% if est_po %}<button type="button" class="btn-crit" data-cible="edit-dor">&#9998; Modifier les critères communs</button>{% endif %}
+        <span class="dod-score" style="color:{{ 'var(--blue)' if dor[1] and dor[0]==dor[1] else 'var(--gray-500)' }}">{{ dor[0] }} / {{ dor[1] }}</span></span>
       </div>
       <p class="aide">Avant le sprint : les conditions pour que la story puisse entrer dans un sprint.</p>
-      <p class="regle">Chaque critère listé s'applique à cette story : <b>case cochée = critère atteint</b>, case vide = non atteint{% if projet.dor_bloquante %} (la story ne pourra pas entrer en sprint){% endif %}. Les critères communs se réécrivent dans {% if est_po %}<a href="{{ url_for('parametres') }}#dor">Produit, DoR &amp; DoD</a>{% else %}Produit, DoR &amp; DoD (PO){% endif %} ; les critères propres à cette story s'ajoutent ci-dessous.</p>
+      <p class="regle">Chaque critère listé s'applique à cette story : <b>case cochée = critère atteint</b>, case vide = non atteint{% if projet.dor_bloquante %} (la story ne pourra pas entrer en sprint){% endif %}. {% if est_po %}Pour changer les critères communs, cliquez sur « Modifier les critères communs »{% else %}Les critères communs sont fixés par le PO{% endif %} ; les critères propres à cette story s'ajoutent en bas du bloc.</p>
+      {% if est_po %}
+      <div class="crit-edit" id="edit-dor" hidden>
+        <div class="field" style="margin:0"><label>DoR commune · un critère par ligne · s'applique à toutes les stories</label>
+          <textarea name="dor_commune_edit" data-defaut="{{ DOR_DEFAUT|join('\n') }}">{{ dor_commune|join('\n') }}</textarea></div>
+        <div class="acts"><button class="btn btn-primary btn-sm">Enregistrer</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-defaut-pour="edit-dor">Rétablir les critères par défaut</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-annuler="edit-dor">Annuler</button></div>
+      </div>
+      {% endif %}
       <div class="dod-sub">DoR commune</div>
       {% if dor_commune %}
       <ul class="dod-list">
@@ -140,10 +155,20 @@
     <div class="card">
       <div class="card-title" style="display:flex;justify-content:space-between">
         <span>Définition du Fini</span>
-        <span class="dod-score" style="color:{{ 'var(--green)' if dod[1] and dod[0]==dod[1] else 'var(--gray-500)' }}">{{ dod[0] }} / {{ dod[1] }}</span>
+        <span style="display:flex;gap:10px;align-items:center">{% if est_po %}<button type="button" class="btn-crit" data-cible="edit-dod">&#9998; Modifier les critères communs</button>{% endif %}
+        <span class="dod-score" style="color:{{ 'var(--green)' if dod[1] and dod[0]==dod[1] else 'var(--gray-500)' }}">{{ dod[0] }} / {{ dod[1] }}</span></span>
       </div>
       <p class="aide">Après le travail : les conditions pour déclarer la story « Fait ».</p>
-      <p class="regle">Chaque critère listé s'applique à cette story : <b>case cochée = critère atteint</b>, case vide = non atteint{% if projet.dod_bloquante %} (la story ne pourra pas passer en « Fait »){% endif %}. Les critères communs se réécrivent dans {% if est_po %}<a href="{{ url_for('parametres') }}#dod">Produit, DoR &amp; DoD</a>{% else %}Produit, DoR &amp; DoD (PO){% endif %} ; les critères propres à cette story s'ajoutent ci-dessous.</p>
+      <p class="regle">Chaque critère listé s'applique à cette story : <b>case cochée = critère atteint</b>, case vide = non atteint{% if projet.dod_bloquante %} (la story ne pourra pas passer en « Fait »){% endif %}. {% if est_po %}Pour changer les critères communs, cliquez sur « Modifier les critères communs »{% else %}Les critères communs sont fixés par le PO{% endif %} ; les critères propres à cette story s'ajoutent en bas du bloc.</p>
+      {% if est_po %}
+      <div class="crit-edit" id="edit-dod" hidden>
+        <div class="field" style="margin:0"><label>DoD commune · un critère par ligne · s'applique à toutes les stories</label>
+          <textarea name="dod_commune_edit" data-defaut="{{ DOD_DEFAUT|join('\n') }}">{{ dod_commune|join('\n') }}</textarea></div>
+        <div class="acts"><button class="btn btn-primary btn-sm">Enregistrer</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-defaut-pour="edit-dod">Rétablir les critères par défaut</button>
+          <button type="button" class="btn btn-ghost btn-sm" data-annuler="edit-dod">Annuler</button></div>
+      </div>
+      {% endif %}
       <div class="dod-sub">DoD commune</div>
       {% if dod_commune %}
       <ul class="dod-list">
@@ -257,6 +282,17 @@ document.querySelectorAll('.dod-list input[type=checkbox]').forEach(function(c){
   function maj(){ var v=sel.value, k=(v==='us'||v==='bug')?v:'autre';
     document.querySelectorAll('.grp').forEach(function(g){ g.hidden = g.dataset.nat!==k; }); }
   sel.addEventListener('change',maj); maj(); })();
+// Edition des criteres communs directement sur la fiche (PO)
+document.querySelectorAll('.btn-crit').forEach(function(b){
+  b.addEventListener('click',function(){ var z=document.getElementById(b.dataset.cible); z.hidden=!z.hidden;
+    if(!z.hidden){ var t=z.querySelector('textarea'); t.dataset.initial=t.value; t.focus(); } });
+});
+document.querySelectorAll('[data-defaut-pour]').forEach(function(b){
+  b.addEventListener('click',function(){ var t=document.getElementById(b.dataset.defautPour).querySelector('textarea'); t.value=t.dataset.defaut; t.focus(); });
+});
+document.querySelectorAll('[data-annuler]').forEach(function(b){
+  b.addEventListener('click',function(){ var z=document.getElementById(b.dataset.annuler), t=z.querySelector('textarea'); if(t.dataset.initial!==undefined) t.value=t.dataset.initial; z.hidden=true; });
+});
 // Andon
 (function(){ var c=document.getElementById('andon'), m=document.getElementById('andon-motif'), card=document.getElementById('andon-card');
   c.addEventListener('change',function(){ m.hidden=!c.checked; card.classList.toggle('on',c.checked); if(c.checked) m.querySelector('input').focus(); }); })();

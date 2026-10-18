@@ -1,0 +1,10 @@
+{% extends 'base.html' %}
+{% block title %}Page introuvable{% endblock %}
+{% block page_title %}Page introuvable{% endblock %}
+{% block content %}
+<div class="card" style="max-width:640px">
+  <div class="card-title">Cet élément n'existe plus</div>
+  <p style="font-size:14px;line-height:1.55;margin-bottom:14px">La story, la feature ou la pièce jointe demandée a été supprimée, ou le backlog a été vidé ou remplacé par l'exemple.</p>
+  <a class="btn btn-primary btn-sm" href="{{ url_for('backlog') }}">Retour au backlog</a>
+</div>
+{% endblock %}

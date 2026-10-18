@@ -128,6 +128,7 @@ class Projet(db.Model):
     dor_commune_json = db.Column(db.Text, default='[]')
     dor_bloquante = db.Column(db.Boolean, default=True)    # une story n'entre dans un sprint que si elle est prete
     natures_perso_json = db.Column(db.Text, default='[]')  # natures de story ajoutees par le PO
+    instance_id = db.Column(db.String(32), default='')     # change quand la base repart de zero
 
     @property
     def dod_commune(self): return lire_json(self.dod_commune_json, [])
@@ -270,6 +271,8 @@ def init_db():
             cx.execute(text('CREATE SCHEMA IF NOT EXISTS "{}"'.format(DB_SCHEMA)))
     db.create_all()
     p = get_projet()
+    if not p.instance_id:
+        p.instance_id = secrets.token_hex(8); db.session.commit()
     synchroniser_sprints(p.nb_sprints)
     if User.query.count() == 0:
         po_pw = os.environ.get('PO_PASSWORD') or secrets.token_urlsafe(9)
@@ -310,6 +313,23 @@ def po_requis(f):
     return w
 
 def est_po(): return session.get('role') == 'po'
+
+@app.before_request
+def verifier_instance():
+    """Si l'appli a redemarre sur une base neuve (mise a jour, mise en veille), la session ouverte
+    pointe vers des donnees qui n'existent plus : on l'explique au lieu d'afficher des erreurs."""
+    if 'user_id' in session and request.endpoint not in ('login', 'logout', 'static'):
+        if session.get('instance') != get_projet().instance_id:
+            session.clear()
+            flash("L'application a redémarré (mise à jour, ou mise en veille après 15 minutes sans activité) : "
+                  "les données de la séance ont été remises à zéro. Reconnectez-vous ; vous pouvez recharger l'exemple ROBO AGRI.", 'error')
+            return redirect(url_for('login'))
+
+@app.errorhandler(404)
+def introuvable(e):
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+    return render_template('introuvable.html'), 404
 
 @app.context_processor
 def contexte():
@@ -361,6 +381,7 @@ def login():
             login_attempts[ip] = {'count': 0, 'locked_until': None}
             session.permanent = True
             session['user_id'] = u.id; session['role'] = u.role; session['username'] = u.username
+            session['instance'] = get_projet().instance_id
             return redirect(url_for('backlog'))
         d['count'] += 1
         if d['count'] >= 5:
@@ -646,9 +667,16 @@ def story(sid):
         s.points = nombre(fm.get('points'))
         s.dor_ok_json = json.dumps([l for i, l in enumerate(p.dor_commune) if fm.get('dorc_{}'.format(i))])
         s.dor_json = json.dumps(liste_criteres(fm, 'dor'))
-        erreur_dor = affecter_sprint(s, borne(fm.get('sprint'), 0, p.nb_sprints, 0), p)
-        # DoD commune : cases cochees
         s.dod_commune_ok_json = json.dumps([l for i, l in enumerate(p.dod_commune) if fm.get('dodc_{}'.format(i))])
+        # criteres communs modifies directement depuis la fiche (PO)
+        maj_criteres = []
+        if est_po():
+            for champ, attr, nom in (('dor_commune_edit', 'dor_commune_json', 'DoR'), ('dod_commune_edit', 'dod_commune_json', 'DoD')):
+                if champ in fm:
+                    nouv = [l.strip()[:200] for l in fm.get(champ, '').splitlines() if l.strip()]
+                    if nouv != lire_json(getattr(p, attr), []):
+                        setattr(p, attr, json.dumps(nouv)); maj_criteres.append(nom)
+        erreur_dor = affecter_sprint(s, borne(fm.get('sprint'), 0, p.nb_sprints, 0), p)
         # DoD specifique : libelles + cases
         s.dod_json = json.dumps(liste_criteres(fm, 'dod'))
         erreur = changer_statut_story(s, fm.get('statut'), p)
@@ -660,7 +688,7 @@ def story(sid):
         elif s.statut == 'Fait' and fait < total:
             flash('Story enregistrée en « Fait » alors que la Définition du Fini n\'est pas complète ({}/{})'.format(fait, total), 'error')
         else:
-            flash('Story enregistrée', 'success')
+            flash('Story enregistrée' + (' ; critères communs de {} mis à jour pour toutes les stories'.format(' et '.join(maj_criteres)) if maj_criteres else ''), 'success')
         return redirect(url_for('story', sid=s.id))
     # navigation precedente / suivante dans l'ordre du backlog
     prio_rang = {k: i for i, k in enumerate(PRIORITES)}
@@ -677,7 +705,8 @@ def story(sid):
                            enfants_ouverts=enfants_ouverts,
                            features=Feature.query.order_by(Feature.ordre, Feature.id).all(),
                            responsables=responsables_connus(), dod=s.dod_etat(p.dod_commune),
-                           dor_commune=p.dor_commune, dor=s.dor_etat(p.dor_commune))
+                           dor_commune=p.dor_commune, dor=s.dor_etat(p.dor_commune),
+                           DOR_DEFAUT=DOR_COMMUNE_DEFAUT, DOD_DEFAUT=DOD_COMMUNE_DEFAUT)
 
 def liste_criteres(fm, prefixe):
     """Criteres specifiques (DoR ou DoD) saisis sur la fiche : libelles + cases + nouveau critere."""
