@@ -1,0 +1,260 @@
+{% extends 'base.html' %}
+{% block title %}Rétrospective · Sprint {{ n }}{% endblock %}
+{% block page_title %}Rétrospective du sprint {{ n }}{% endblock %}
+{% block topbar_actions %}
+  {% if r %}<span class="badge sp">{{ TECH[r.technique].nom }}</span>
+  {% if r.phase >= PHASES|length %}<span class="badge st-Fait">Terminée</span>{% else %}<span class="badge st-En-cours">{{ PHASES[r.phase] }}</span>{% endif %}{% endif %}
+{% endblock %}
+{% block extra_css %}
+<style>
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tab{padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;color:var(--gray-700);background:white;border:1px solid var(--gray-200)}
+.tab.active{background:var(--navy);color:white;border-color:var(--navy)}
+.tab .ok{color:var(--green);margin-left:4px}
+.tech-choix{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px;margin-bottom:14px}
+.tech-choix label{border:2px solid var(--gray-200);border-radius:12px;padding:14px;cursor:pointer;display:block}
+.tech-choix input{display:none}
+.tech-choix input:checked + .tc{outline:none}
+.tech-choix label:has(input:checked){border-color:var(--blue);background:var(--blue-ll)}
+.tc-nom{font-size:15px;font-weight:800;color:var(--navy);margin-bottom:4px}
+.tc-aide{font-size:12px;color:var(--gray-500);margin-bottom:8px}
+.tc-zones{display:flex;flex-wrap:wrap;gap:4px}
+.tc-zones span{font-size:11px;font-weight:700;padding:2px 7px;border-radius:99px;color:var(--c);background:color-mix(in srgb,var(--c) 12%,white)}
+.phases{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ph{display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;background:var(--gray-100);color:var(--gray-500)}
+.ph b{display:inline-flex;width:20px;height:20px;border-radius:50%;align-items:center;justify-content:center;background:white;font-size:11px}
+.ph.ok{background:var(--green-light);color:var(--green)}.ph.ok b{background:var(--green);color:white}
+.ph.cur{background:var(--blue-ll);color:var(--blue);outline:1.5px solid var(--blue)}.ph.cur b{background:var(--blue);color:white}
+.phase-aide{font-size:13px;margin-top:10px;color:var(--gray-700)}
+.pilot{display:flex;gap:8px;align-items:center;margin-left:auto}
+.pilot form{display:inline}
+.board{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:14px}
+.zone{background:white;border:1px solid var(--gray-200);border-top:5px solid var(--c);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:180px}
+.zone-h{display:flex;align-items:center;gap:8px}
+.zone-h .ico{font-size:18px;color:var(--c);width:22px;text-align:center}
+.zone-h .nom{font-weight:800;color:var(--navy);font-size:14px}
+.zone-h .nb{margin-left:auto;font-size:11px;color:var(--gray-500);font-family:'DM Mono',monospace}
+.zone .aide{font-size:11.5px;color:var(--gray-500);margin-top:-4px}
+.postit{background:color-mix(in srgb,var(--c) 12%,#fffdf5);border:1px solid color-mix(in srgb,var(--c) 30%,white);border-radius:8px;padding:8px 10px;font-size:13px;line-height:1.4;position:relative}
+.postit.masque{background:repeating-linear-gradient(135deg,var(--gray-100),var(--gray-100) 6px,white 6px,white 12px);color:var(--gray-500);font-style:italic;font-size:12px;border-color:var(--gray-200)}
+.postit .bas{display:flex;align-items:center;gap:6px;margin-top:6px;font-size:11px;color:var(--gray-500)}
+.postit .bas form{display:inline}
+.vote{border:1.5px solid var(--blue);background:white;color:var(--blue);border-radius:99px;padding:2px 9px;font:700 11px 'DM Sans',sans-serif;cursor:pointer}
+.vote.mine{background:var(--blue);color:white}
+.vote:disabled{opacity:.4;cursor:default}
+.nbv{font-family:'DM Mono',monospace;font-weight:700;color:var(--navy);background:white;border-radius:6px;padding:1px 6px;margin-left:auto}
+.add-postit textarea{min-height:44px;font-size:13px}
+.add-postit button{margin-top:6px}
+.boat{width:100%;max-width:760px;height:auto;display:block;margin:0 auto 12px;border-radius:12px}
+.act-row{display:grid;grid-template-columns:minmax(0,1fr) 150px 120px 130px auto;gap:8px;align-items:center;padding:8px 0;border-bottom:1px solid var(--gray-100)}
+.act-form{display:grid;grid-template-columns:minmax(0,1fr) 150px 120px auto;gap:8px;align-items:center;margin-bottom:10px}
+.roti{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+.roti button{width:38px;height:38px;border-radius:10px;border:1.5px solid var(--gray-200);background:white;font:800 15px 'DM Sans',sans-serif;cursor:pointer;color:var(--gray-700)}
+.roti button.mine{background:var(--blue);border-color:var(--blue);color:white}
+.prev-row{display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid var(--gray-100);font-size:13px;flex-wrap:wrap}
+.prev-row form{margin-left:auto}
+.prev-row select{width:140px;padding:5px 8px;font-size:12px}
+@media(max-width:900px){.tech-choix{grid-template-columns:1fr}.act-row,.act-form{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="tabs">
+  {% for x in sprints %}{% set hr = (histo|selectattr('r.sprint','equalto',x.sprint.numero)|list) %}
+  <a class="tab {% if x.sprint.numero==n %}active{% endif %}" href="{{ url_for('retro', sprint=x.sprint.numero) }}">S{{ x.sprint.numero }}{% if hr and hr[0].r.phase >= PHASES|length %}<span class="ok">&#10003;</span>{% endif %}</a>
+  {% endfor %}
+</div>
+
+{% if precedentes %}
+<div class="card">
+  <div class="card-title">Bilan des actions décidées à la rétrospective précédente</div>
+  <p class="small muted" style="margin:-6px 0 8px">À faire en ouverture de rétro : ces améliorations ont-elles été appliquées pendant le sprint {{ n }} ?</p>
+  {% for a in precedentes %}
+  <div class="prev-row"><span>{{ a.texte }}</span>{% if a.porteur %}<span class="muted small">· {{ court(a.porteur) }}</span>{% endif %}
+    <form method="post" action="{{ url_for('action_statut', aid=a.id) }}"><input type="hidden" name="retour" value="{{ url_for('retro', sprint=n) }}">
+      <select name="statut" onchange="this.form.submit()">{% for st in STATUTS_ACTION %}<option {% if st==a.statut %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></form></div>
+  {% endfor %}
+</div>
+{% endif %}
+
+{% if not r %}
+<div class="card">
+  <div class="card-title">Lancer la rétrospective du sprint {{ n }}</div>
+  {% if est_po %}
+  <form method="post" action="{{ url_for('retro_demarrer', n=n) }}">
+    <div class="tech-choix">
+      {% for code, t in TECH.items() %}
+      <label><input type="radio" name="technique" value="{{ code }}" {% if loop.first %}checked{% endif %}><div class="tc">
+        <div class="tc-nom">{{ t.nom }}</div><div class="tc-aide">{{ t.aide }}</div>
+        <div class="tc-zones">{% for z in t.zones %}<span style="--c:{{ z[3] }}">{{ z[1] }}</span>{% endfor %}</div></div></label>
+      {% endfor %}
+    </div>
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:12px"><input type="checkbox" name="anonyme" checked style="width:17px;height:17px"> Post-its anonymes (recommandé)</label>
+    <button class="btn btn-primary">Démarrer la rétrospective</button>
+  </form>
+  {% else %}
+  <p class="small muted">Le Product Owner choisit la technique et lance la rétrospective. Cette page se mettra à jour toute seule.</p>
+  {% endif %}
+</div>
+{% else %}{% set T = TECH[r.technique] %}
+
+<div class="card">
+  <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+    <div class="phases">
+      {% for ph in PHASES %}<span class="ph {{ 'ok' if r.phase > loop.index0 else ('cur' if r.phase == loop.index0 else '') }}"><b>{{ '✓' if r.phase > loop.index0 else loop.index }}</b>{{ ph }}</span>{% endfor %}
+    </div>
+    {% if est_po %}<div class="pilot">
+      {% if r.phase > 0 %}<form method="post" action="{{ url_for('retro_phase', n=n) }}"><input type="hidden" name="sens" value="-"><button class="btn btn-ghost btn-sm">&#8249; Étape précédente</button></form>{% endif %}
+      {% if r.phase < PHASES|length %}<form method="post" action="{{ url_for('retro_phase', n=n) }}"><input type="hidden" name="sens" value="+"><button class="btn btn-primary btn-sm">{{ 'Terminer la rétrospective' if r.phase == PHASES|length - 1 else 'Étape suivante : ' ~ PHASES[r.phase + 1] }} &#8250;</button></form>{% endif %}
+    </div>{% endif %}
+  </div>
+  <p class="phase-aide">
+    {% if r.phase == 0 %}<b>Collecte</b> : chacun ajoute ses post-its dans les zones. Ceux des autres restent masqués pour ne pas influencer les avis.
+    {% elif r.phase == 1 %}<b>Révélation</b> : tous les post-its sont visibles. Lisez-les ensemble, ajoutez ceux qui manquent, supprimez les doublons.
+    {% elif r.phase == 2 %}<b>Vote</b> : chacun dispose de {{ VOTES }} votes à répartir sur les sujets les plus importants. Il vous reste <b id="restants">{{ VOTES - mes_votes }}</b> vote(s).
+    {% elif r.phase == 3 %}<b>Actions</b> : transformez les sujets les plus votés en actions d'amélioration, avec un porteur, pour le sprint suivant. Donnez ensuite votre ROTI.
+    {% else %}<b>Rétrospective terminée.</b> Les actions apparaissent sur le Kanban du sprint visé et seront passées en revue à la prochaine rétro.{% endif %}
+    {% if est_po and r.phase < 2 %}<form method="post" action="{{ url_for('retro_anonyme', n=n) }}" style="display:inline"><button class="btn-link" title="Afficher ou masquer les auteurs">{{ 'Post-its anonymes · afficher les auteurs' if r.anonyme else 'Auteurs visibles · rendre anonyme' }}</button></form>{% endif %}
+  </p>
+</div>
+
+{% if r.technique == 'speedboat' %}
+<svg class="boat" viewBox="0 0 760 150" role="img" aria-label="Speed boat : l'île, le vent, les ancres, les récifs">
+  <rect width="760" height="150" fill="#eff6ff"/>
+  <path d="M0 98 Q 40 90 80 98 T 160 98 T 240 98 T 320 98 T 400 98 T 480 98 T 560 98 T 640 98 T 720 98 T 800 98 V150 H0z" fill="#bfdbfe"/>
+  <g stroke="#2563eb" stroke-width="2" stroke-linecap="round" fill="none"><path d="M40 40 h60"/><path d="M30 55 h80"/><path d="M50 70 h50"/></g>
+  <text x="70" y="28" text-anchor="middle" font-size="12" font-weight="700" fill="#2563eb">Vent</text>
+  <path d="M250 96 h120 l-18 22 h-90z" fill="#1a2744"/><path d="M300 96 V40 l40 50z" fill="white" stroke="#1a2744" stroke-width="2"/>
+  <path d="M300 118 V138" stroke="#92400e" stroke-width="2"/><path d="M292 134 q8 10 16 0" stroke="#92400e" stroke-width="2.5" fill="none"/>
+  <text x="314" y="142" font-size="12" font-weight="700" fill="#92400e">Ancres</text>
+  <path d="M480 100 l14 -18 l12 18z M500 100 l10 -12 l10 12z" fill="#64748b"/>
+  <text x="500" y="76" text-anchor="middle" font-size="12" font-weight="700" fill="#dc2626">Récifs</text>
+  <ellipse cx="660" cy="98" rx="70" ry="16" fill="#fde68a"/><path d="M660 96 V66" stroke="#92400e" stroke-width="4"/><path d="M660 66 q-22 -6 -34 6 M660 66 q22 -6 34 6 M660 66 q-10 -16 -26 -14 M660 66 q10 -16 26 -14" stroke="#0d9488" stroke-width="5" fill="none" stroke-linecap="round"/>
+  <text x="660" y="30" text-anchor="middle" font-size="12" font-weight="700" fill="#0d9488">Île (objectif)</text>
+</svg>
+{% endif %}
+
+<div class="board">
+  {% for z in T.zones %}{% set code = z[0] %}{% set items = r.postits|selectattr('zone','equalto',code)|list %}
+  <div class="zone" id="zone-{{ code }}" style="--c:{{ z[3] }}">
+    <div class="zone-h"><span class="ico">{{ z[4]|safe }}</span><span class="nom">{{ z[1] }}</span><span class="nb">{{ items|length }}</span></div>
+    <div class="aide">{{ z[2] }}</div>
+    {% set ns = namespace(masques=0) %}
+    {% for x in items|sort(attribute='id') if r.phase < 2 %}
+      {% if r.phase == 0 and x.auteur != moi %}{% set ns.masques = ns.masques + 1 %}{% else %}
+      <div class="postit">{{ x.texte }}
+        <div class="bas">{% if not r.anonyme %}<span>{{ court(x.auteur) }}</span>{% elif x.auteur == moi %}<span>vous</span>{% endif %}
+          {% if est_po or x.auteur == moi %}<form method="post" action="{{ url_for('postit_supprimer', pid=x.id) }}" style="margin-left:auto"><button class="btn-link" title="Supprimer">&#10005;</button></form>{% endif %}</div></div>
+      {% endif %}
+    {% endfor %}
+    {% if r.phase < 2 and ns.masques %}<div class="postit masque">{{ ns.masques }} post-it{{ 's' if ns.masques > 1 }} d'autres participants, masqué{{ 's' if ns.masques > 1 }} jusqu'à la révélation</div>{% endif %}
+    {% if r.phase >= 2 %}
+      {% for x in items|sort(attribute='id')|sort(reverse=True, attribute='nb_votes') %}{% set mine = x.votes.count(moi) %}
+      <div class="postit" data-id="{{ x.id }}">{{ x.texte }}
+        <div class="bas">{% if not r.anonyme %}<span>{{ court(x.auteur) }}</span>{% endif %}
+          {% if r.phase == 2 %}<button type="button" class="vote j-vote {{ 'mine' if mine }}" data-mine="{{ mine }}" title="Voter pour ce sujet">&#9650; voter</button>{% if mine %}<button type="button" class="vote j-unvote" title="Retirer un de vos votes">&#8722;</button>{% endif %}{% endif %}
+          {% if r.phase == 3 %}<button type="button" class="vote j-action" data-texte="{{ x.texte }}" data-id="{{ x.id }}">&#10140; action</button>{% endif %}
+          <span class="nbv" title="Votes">{{ x.votes|length }}</span></div></div>
+      {% endfor %}
+    {% endif %}
+    {% if r.phase <= 1 %}
+    <form class="add-postit" method="post" action="{{ url_for('retro_postit', n=n) }}"><input type="hidden" name="zone" value="{{ code }}">
+      <textarea name="texte" placeholder="Nouveau post-it…" required maxlength="300"></textarea>
+      <button class="btn btn-ghost btn-sm">+ Post-it</button></form>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+{% if r.phase >= 3 %}
+<div class="card" id="actions" style="margin-top:20px">
+  <div class="card-title">Actions d'amélioration</div>
+  {% if r.phase == 3 %}
+  <form class="act-form" method="post" action="{{ url_for('retro_action', n=n) }}"><input type="hidden" name="postit_id" id="act-postit">
+    <input type="text" name="texte" id="act-texte" placeholder="Action concrète (ex : faire relire chaque story par un pair avant le sprint planning)" required maxlength="300">
+    <select name="porteur"><option value="">Porteur…</option>{% for x in PERSONNES %}<option value="{{ x.id }}">{{ x.court }}</option>{% endfor %}</select>
+    <select name="sprint_cible">{% for x in sprints %}<option value="{{ x.sprint.numero }}" {% if x.sprint.numero == n + 1 %}selected{% endif %}>Sprint {{ x.sprint.numero }}</option>{% endfor %}</select>
+    <button class="btn btn-success btn-sm">+ Action</button>
+  </form>
+  {% endif %}
+  {% for a in r.actions %}
+  <form class="act-row" method="post" action="{{ url_for('action_statut', aid=a.id) }}"><input type="hidden" name="retour" value="{{ url_for('retro', sprint=n) }}#actions">
+    <span style="font-size:13px">{{ a.texte }}</span>
+    <select name="porteur" onchange="this.form.submit()"><option value="">Porteur…</option>{% for x in PERSONNES %}<option value="{{ x.id }}" {% if x.id==a.porteur %}selected{% endif %}>{{ x.court }}</option>{% endfor %}</select>
+    <span class="small muted">pour le sprint {{ a.sprint_cible }}</span>
+    <select name="statut" onchange="this.form.submit()">{% for st in STATUTS_ACTION %}<option {% if st==a.statut %}selected{% endif %}>{{ st }}</option>{% endfor %}</select>
+    {% if r.phase == 3 %}<button class="btn-link" name="supprimer" value="1" onclick="return confirm('Supprimer cette action ?')">&#10005;</button>{% else %}<span></span>{% endif %}
+  </form>
+  {% else %}<p class="muted small">Aucune action pour l'instant{% if r.phase == 3 %} : cliquez sur « &#10140; action » sous un post-it, ou saisissez-la directement{% endif %}.</p>{% endfor %}
+
+  <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--gray-100)">
+    <div class="lbl" style="margin-bottom:8px">ROTI · cette rétro valait-elle le temps passé ? (1 = perte de temps, 5 = excellent)</div>
+    <div class="roti">{% set mon = r.roti.get(moi) %}
+      {% for k in range(1, 6) %}<button type="button" class="j-roti {{ 'mine' if mon == k }}" data-note="{{ k }}" {% if r.phase > 3 %}disabled{% endif %}>{{ k }}</button>{% endfor %}
+      <span class="small muted" id="roti-moy">{% if r.roti_moyen() %}Moyenne {{ r.roti_moyen()|string|replace('.', ',') }} / 5 sur {{ r.roti|length }} avis{% else %}Aucun avis{% endif %}</span>
+    </div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
+<div class="card" style="margin-top:20px">
+  <div class="card-title">Historique des rétrospectives</div>
+  {% if histo %}
+  <table class="data-table cards-mobile">
+    <thead><tr><th>Sprint</th><th>Technique</th><th>Statut</th><th class="c">Post-its</th><th class="c">Actions</th><th class="c">Actions faites</th><th class="c">ROTI</th></tr></thead>
+    <tbody>
+    {% for h in histo %}
+      <tr><td><a href="{{ url_for('retro', sprint=h.r.sprint) }}"><b>S{{ h.r.sprint }}</b></a></td><td>{{ h.technique }}</td>
+        <td>{% if h.r.phase >= PHASES|length %}<span class="badge st-Fait">Terminée</span>{% else %}<span class="badge st-En-cours">{{ PHASES[h.r.phase] }}</span>{% endif %}</td>
+        <td class="c">{{ h.postits }}</td><td class="c">{{ h.actions }}</td><td class="c">{{ h.faites }}/{{ h.actions }}</td>
+        <td class="c mono">{{ (h.roti|string|replace('.', ',')) if h.roti is not none else '—' }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}<p class="muted small">Aucune rétrospective pour l'instant.</p>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var N = {{ n }}, VERSION = {{ version|tojson }}, enCours = false;
+function api(url, data){
+  enCours = true;
+  return fetch(url, {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data||{})})
+    .then(function(r){ return r.json().then(function(j){ if(!r.ok) throw j; return j; }); })
+    .finally(function(){ enCours = false; });
+}
+document.querySelectorAll('.j-vote').forEach(function(b){
+  b.addEventListener('click', function(){
+    var id = b.closest('.postit').dataset.id;
+    api('/api/postit/' + id + '/vote', {}).then(function(){ location.reload(); }).catch(function(e){ alert((e && e.erreur) || 'Vote impossible.'); });
+  });
+});
+document.querySelectorAll('.j-unvote').forEach(function(b){
+  b.addEventListener('click', function(){
+    var id = b.closest('.postit').dataset.id;
+    api('/api/postit/' + id + '/vote', {retirer: true}).then(function(){ location.reload(); }).catch(function(){});
+  });
+});
+document.querySelectorAll('.j-action').forEach(function(b){
+  b.addEventListener('click', function(){
+    var t = document.getElementById('act-texte'); t.value = b.dataset.texte; document.getElementById('act-postit').value = b.dataset.id;
+    viser('actions'); setTimeout(function(){ t.focus(); t.select(); }, 400);
+  });
+});
+document.querySelectorAll('.j-roti').forEach(function(b){
+  b.addEventListener('click', function(){
+    api('/api/retro/' + N + '/roti', {note: +b.dataset.note}).then(function(j){
+      document.querySelectorAll('.j-roti').forEach(function(o){ o.classList.toggle('mine', o === b); });
+      document.getElementById('roti-moy').textContent = 'Moyenne ' + String(j.moyenne).replace('.', ',') + ' / 5 sur ' + j.nb + ' avis';
+    });
+  });
+});
+// Vue partagee : rechargement quand un autre participant agit (sauf pendant une saisie)
+setInterval(function(){
+  if (enCours || document.hidden) return;
+  var a = document.activeElement;
+  if (a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type === 'text')) && a.value) return;
+  fetch('/api/retro/' + N + '/version').then(function(r){ return r.json(); }).then(function(j){ if (j.v !== VERSION) location.reload(); }).catch(function(){});
+}, 4000);
+</script>
+{% endblock %}

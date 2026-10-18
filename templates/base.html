@@ -90,6 +90,9 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .porteurs{display:inline-flex;gap:6px;align-items:center;flex-wrap:wrap;font-size:11px;color:var(--gray-700);text-transform:none;letter-spacing:0;font-weight:500}
 .porteurs b{font-family:'DM Mono',monospace;font-size:10px;font-weight:700;color:white;background:var(--navy);border-radius:4px;padding:1px 4px;margin-right:3px}
 .porteurs b.r{background:var(--gray-500)}
+.toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;gap:8px;width:min(640px,calc(100% - 24px));pointer-events:none}
+.toasts .alert{margin:0;box-shadow:0 8px 24px rgba(15,23,42,.18);pointer-events:auto;transition:opacity .4s}
+.parcours-aide{font-size:11px;color:var(--gray-500);margin:-4px 0 10px}
 .mobile-title small{font-weight:500;opacity:.6;margin-left:6px}
 /* Badges */
 .badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
@@ -183,6 +186,8 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
       <a href="{{ url_for('sprints') }}" class="nav-item {% if request.endpoint=='sprints' %}active{% endif %}"><span class="nav-icon">&#128197;</span> 1 · Releases &amp; sprints</a>
       <a href="{{ url_for('backlog') }}" class="nav-item {% if request.endpoint in ('backlog','story') %}active{% endif %}"><span class="nav-icon">&#128203;</span> 2 · Product backlog</a>
       <a href="{{ url_for('kanban') }}" class="nav-item {% if request.endpoint=='kanban' %}active{% endif %}"><span class="nav-icon">&#128204;</span> 3 · Kanban du sprint</a>
+      <a href="{{ url_for('revue') }}" class="nav-item {% if request.endpoint=='revue' %}active{% endif %}"><span class="nav-icon">&#127916;</span> 4 · Revue de sprint</a>
+      <a href="{{ url_for('retro') }}" class="nav-item {% if request.endpoint=='retro' %}active{% endif %}"><span class="nav-icon">&#128260;</span> 5 · Rétrospective</a>
     </div>
     {% if est_po %}
     <div class="sidebar-section">
@@ -211,13 +216,14 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
         {% endfor %}
       {% endwith %}
       {% if not est_po %}{% block ro_banner %}{% endblock %}{% endif %}
-      {% if parcours.courante and request.endpoint in ('backlog','sprints','kanban','story') %}{% set c = parcours.courante %}
+      {% if parcours.courante and request.endpoint in ('backlog','sprints','kanban','story','revue','retro') %}{% set c = parcours.courante %}
       <div class="parcours no-print" id="parcours">
-        <div class="parcours-head"><div class="card-title">Mise en route · étape {{ c.n }} sur 6</div>
+        <div class="parcours-head"><div class="card-title">Mise en route · étape {{ c.n }} sur {{ parcours.etapes|length }}</div>
           <button type="button" class="btn-link" id="parcours-toggle">Masquer</button></div>
         <div class="parcours-steps">
           {% for e in parcours.etapes %}<a class="pstep {{ 'ok' if e.ok else ('cur' if e.n == c.n else '') }}" href="{{ e.lien }}"><b>{{ '✓' if e.ok else e.n }}</b>{{ e.nom }}</a>{% endfor %}
         </div>
+        <p class="parcours-aide">Une étape passe au vert quand elle est réalisée ; cliquer sur une étape mène simplement à la page concernée.</p>
         <div class="parcours-next">
           <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}</div>
           {% if est_po or not c.po %}<a class="btn btn-primary btn-sm" href="{{ c.lien }}">{{ c.bouton }} &rarr;</a>{% endif %}
@@ -240,6 +246,11 @@ document.querySelectorAll('table.data-table').forEach(function(t){
   var p=t.parentElement; if(p.classList.contains('table-scroll')) return;
   var w=document.createElement('div'); w.className='table-scroll'; p.insertBefore(w,t); w.appendChild(t);
 });
+// Messages : toujours visibles, meme quand la page descend sur une zone (copie flottante 8 s)
+(function(){ var al=document.querySelectorAll('.page-content > .alert'); if(!al.length || !location.hash) return;
+  var t=document.createElement('div'); t.className='toasts'; document.body.appendChild(t);
+  al.forEach(function(a){ t.appendChild(a.cloneNode(true)); });
+  setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },500); },8000); })();
 // Amener l'utilisateur au bon champ : met en evidence la zone cible et y place le curseur
 function viser(id){
   var el=id&&document.getElementById(id); if(!el) return false;

@@ -263,6 +263,89 @@ class Tache(db.Model):
     fait_jour = db.Column(db.Integer, nullable=True)
     responsable = db.Column(db.String(40), default='')
 
+# ---------------------------------------------------------------- Revue & retrospective
+TECHNIQUES_RETRO = {
+    'etoile': {'nom': 'Étoile de mer', 'aide': "Cinq branches pour ajuster nos pratiques.", 'zones': [
+        ('commencer', 'Commencer', 'Ce que nous devrions commencer à faire', '#16a34a', '&#9654;'),
+        ('arreter', 'Arrêter', 'Ce qui ne nous apporte rien', '#dc2626', '&#9632;'),
+        ('continuer', 'Continuer', 'Ce qui marche, à garder', '#2563eb', '&#10227;'),
+        ('plus', 'Faire plus', 'Ce qui mérite plus d\'efforts', '#7c3aed', '&#9650;'),
+        ('moins', 'Faire moins', 'Ce qu\'il faut réduire', '#d97706', '&#9660;')]},
+    '4l': {'nom': '4L', 'aide': "Quatre regards sur le sprint écoulé.", 'zones': [
+        ('aime', 'Aimé (Liked)', 'Ce que nous avons apprécié', '#16a34a', '&#9829;'),
+        ('appris', 'Appris (Learned)', 'Ce que nous avons appris', '#2563eb', '&#9733;'),
+        ('manque', 'Manqué (Lacked)', 'Ce qui nous a manqué', '#dc2626', '&#9888;'),
+        ('souhaite', 'Souhaité (Longed for)', 'Ce que nous aimerions avoir', '#7c3aed', '&#10024;')]},
+    'speedboat': {'nom': 'Speed boat', 'aide': "Le bateau, c'est l'équipe : où allons-nous et qu'est-ce qui nous freine ?", 'zones': [
+        ('ile', "L'île", 'Notre objectif, là où nous voulons aller', '#0d9488', '&#127965;'),
+        ('vent', 'Le vent', 'Ce qui nous pousse en avant', '#2563eb', '&#127788;'),
+        ('ancres', 'Les ancres', 'Ce qui nous ralentit', '#92400e', '&#9875;'),
+        ('recifs', 'Les récifs', 'Les risques devant nous', '#dc2626', '&#9888;')]},
+}
+PHASES_RETRO = ['Collecte', 'Révélation', 'Vote', 'Actions']
+VOTES_PAR_PERSONNE = 3
+STATUTS_ACTION = ['A faire', 'Faite', 'Pas faite', 'Abandonnée']
+VERDICTS = [('acceptee', 'Acceptée'), ('retravailler', 'À retravailler'), ('refusee', 'Refusée')]
+
+class Revue(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sprint = db.Column(db.Integer, unique=True, nullable=False)
+    demo_json = db.Column(db.Text, default='{}')          # {story_id: {"demo": bool, "verdict": code}}
+    objectif_atteint = db.Column(db.String(10), default='')  # oui / partiel / non
+    notes = db.Column(db.Text, default='')
+    cloturee = db.Column(db.Boolean, default=False)
+    engage = db.Column(db.Float, default=0)                # fige a la cloture
+    livre = db.Column(db.Float, default=0)
+    retours = db.relationship('Retour', backref='revue', cascade='all, delete-orphan', lazy=True, order_by='Retour.id')
+    @property
+    def demo(self): return lire_json(self.demo_json, {})
+
+class Retour(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    revue_id = db.Column(db.Integer, db.ForeignKey('revue.id'), nullable=False)
+    texte = db.Column(db.Text, nullable=False)
+    auteur = db.Column(db.String(80), default='')
+    story_id = db.Column(db.Integer, nullable=True)        # story concernee (facultatif)
+    story_creee_id = db.Column(db.Integer, nullable=True)  # story creee a partir du retour
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+class Retro(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sprint = db.Column(db.Integer, unique=True, nullable=False)
+    technique = db.Column(db.String(20), default='etoile')
+    phase = db.Column(db.Integer, default=0)               # 0..3 = PHASES_RETRO, 4 = terminee
+    anonyme = db.Column(db.Boolean, default=True)
+    roti_json = db.Column(db.Text, default='{}')           # {identifiant: 1..5}
+    postits = db.relationship('PostIt', backref='retro', cascade='all, delete-orphan', lazy=True, order_by='PostIt.id')
+    actions = db.relationship('ActionAmelioration', backref='retro', cascade='all, delete-orphan', lazy=True,
+                              order_by='ActionAmelioration.id')
+    @property
+    def roti(self): return lire_json(self.roti_json, {})
+    def roti_moyen(self):
+        v = list(self.roti.values())
+        return round(sum(v) / len(v), 1) if v else None
+
+class PostIt(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    retro_id = db.Column(db.Integer, db.ForeignKey('retro.id'), nullable=False)
+    zone = db.Column(db.String(20), nullable=False)
+    texte = db.Column(db.Text, nullable=False)
+    auteur = db.Column(db.String(80), default='')
+    votes_json = db.Column(db.Text, default='[]')          # identifiants (un vote = une entree)
+    @property
+    def votes(self): return lire_json(self.votes_json, [])
+    @property
+    def nb_votes(self): return len(self.votes)
+
+class ActionAmelioration(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    retro_id = db.Column(db.Integer, db.ForeignKey('retro.id'), nullable=False)
+    postit_id = db.Column(db.Integer, nullable=True)
+    texte = db.Column(db.Text, nullable=False)
+    porteur = db.Column(db.String(80), default='')
+    sprint_cible = db.Column(db.Integer, default=0)
+    statut = db.Column(db.String(20), default='A faire')
+
 # ---------------------------------------------------------------- Initialisation
 def get_projet():
     p = Projet.query.first()
@@ -375,11 +458,18 @@ def parcours(p):
          'action': "Ouvrez chaque story : estimez-la en points, rattachez-la si besoin à une story parente et cochez sa Definition of Ready.",
          'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'), 'bouton': 'Affiner une story'},
         {'n': 5, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
-         'action': 'Affectez les stories prêtes à un sprint (liste « Affecter à… »).',
+         'action': 'Affectez les stories prêtes à un sprint (liste « Affecter à… »).' if pretes else
+                   "Aucune story n'est encore prête : terminez d'abord l'étape 4 (estimation + DoR complète).",
          'lien': url_for('sprints') + '#non-planifiees', 'bouton': 'Planifier'},
         {'n': 6, 'nom': 'Jouer le sprint', 'ok': any(s.statut != 'A faire' for s in stories if s.sprint), 'po': False,
          'action': 'Faites avancer les cartes sur le Kanban ; le PO avance le jour après chaque daily.',
          'lien': url_for('kanban'), 'bouton': 'Ouvrir le Kanban'},
+        {'n': 7, 'nom': 'Revue de sprint', 'ok': Revue.query.filter_by(cloturee=True).count() > 0, 'po': False,
+         'action': 'En fin de sprint : démontrez les stories terminées, recueillez les retours clients, puis le PO clôture la revue.',
+         'lien': url_for('revue'), 'bouton': 'Ouvrir la revue'},
+        {'n': 8, 'nom': 'Rétrospective', 'ok': Retro.query.filter_by(phase=len(PHASES_RETRO)).count() > 0, 'po': False,
+         'action': "Le PO lance la rétro (étoile de mer, 4L ou speed boat) ; l'équipe colle ses post-its, vote et décide des actions d'amélioration.",
+         'lien': url_for('retro'), 'bouton': 'Ouvrir la rétrospective'},
     ]
     courante = next((e for e in etapes if not e['ok']), None)
     return {'etapes': etapes, 'courante': courante}
@@ -881,6 +971,7 @@ def kanban():
     debut, fin = dates_sprint(p, n)
     return render_template('kanban.html', n=n, sp=sp, colonnes=colonnes, engage=engage, fait=fait,
                            bd=burndown(p, n), dod_bloquante=p.dod_bloquante, filtre_dev=filtre_dev,
+                           ameliorations=ActionAmelioration.query.filter_by(sprint_cible=n).order_by(ActionAmelioration.id).all(),
                            debut=debut, fin=fin, dod_commune=p.dod_commune,
                            sprints=resume_sprints(p), rel=release_du_sprint(calendrier_releases(p), n),
                            non_planifiees=Story.query.filter_by(sprint=0).count())
@@ -961,8 +1052,13 @@ def sprints():
         flash('Sprints enregistrés', 'success')
         return redirect(url_for('sprints'))
     rs = resume_sprints(p)
-    termines = [r for r in rs if r['fin'] and r['fin'] < date.today()]
-    velocite = round(sum(r['fait'] for r in termines) / len(termines), 1) if termines else None
+    closes = Revue.query.filter_by(cloturee=True).all()
+    if closes:   # la vitesse se mesure sur les revues cloturees (fonctionne aussi en jours simules)
+        termines = closes
+        velocite = round(sum(r.livre for r in closes) / len(closes), 1)
+    else:
+        termines = [r for r in rs if r['fin'] and r['fin'] < date.today()]
+        velocite = round(sum(r['fait'] for r in termines) / len(termines), 1) if termines else None
     prio_rang = {k: i for i, k in enumerate(PRIORITES)}
     np = sorted(Story.query.filter_by(sprint=0).all(), key=lambda s: (prio_rang.get(s.priorite, 9), s.feature.ordre, s.id))
     cal = calendrier_releases(p)
@@ -1012,9 +1108,10 @@ def story_sprint(sid):
     s = db.get_or_404(Story, sid)
     p = get_projet()
     erreur = affecter_sprint(s, borne(request.form.get('sprint'), 0, p.nb_sprints, 0), p)
+    db.session.commit()
     if erreur:
         flash(erreur + ' Complétez sa DoR sur la fiche story.', 'error')
-    db.session.commit()
+        return redirect(url_for('sprints'))
     return redirect(url_for('sprints') + '#non-planifiees')
 
 @app.route('/parametres', methods=['GET', 'POST'])
@@ -1095,6 +1192,7 @@ def reset_all():
     if request.form.get('confirmation', '').strip().upper() != 'VIDER':
         flash('Tapez VIDER pour confirmer la réinitialisation', 'error')
         return redirect(url_for('admin_users'))
+    Retour.query.delete(); Revue.query.delete(); PostIt.query.delete(); ActionAmelioration.query.delete(); Retro.query.delete()
     PieceJointe.query.delete(); Tache.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     for s in Sprint.query.all(): s.objectif = ''; s.capacite = 0; s.jour_courant = 1
     db.session.commit()
@@ -1109,6 +1207,7 @@ def charger_exemple():
     if request.form.get('confirmation', '').strip().upper() != 'EXEMPLE':
         flash("Tapez EXEMPLE pour confirmer le chargement de l'exemple", 'error')
         return redirect(url_for('admin_users'))
+    Retour.query.delete(); Revue.query.delete(); PostIt.query.delete(); ActionAmelioration.query.delete(); Retro.query.delete()
     PieceJointe.query.delete(); Tache.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     p = get_projet()
     p.nom = ex.PRODUIT['nom']; p.vision = ex.PRODUIT['vision']
@@ -1157,6 +1256,298 @@ def charger_exemple():
     db.session.commit()
     flash('Exemple ROBO AGRI chargé : sprint 1 prêt à démarrer, le reste du backlog est à estimer et à planifier.', 'success')
     return redirect(url_for('backlog'))
+
+# ================================================================ Revue de sprint
+import hashlib
+
+def version_de(obj):
+    return hashlib.md5(json.dumps(obj, sort_keys=True, default=str).encode()).hexdigest()[:12]
+
+def sprint_demande(p):
+    return borne(request.args.get('sprint'), 1, p.nb_sprints, sprint_courant(p))
+
+def sprint_courant(p):
+    """Sprint par defaut des pages Revue / Retro : le plus avance ayant des stories, sinon 1."""
+    avec = sorted({s.sprint for s in Story.query.filter(Story.sprint > 0).all()})
+    return avec[-1] if avec else 1
+
+def get_revue(n):
+    r = Revue.query.filter_by(sprint=n).first()
+    if not r:
+        r = Revue(sprint=n); db.session.add(r); db.session.commit()
+    return r
+
+def etat_revue(n):
+    r = Revue.query.filter_by(sprint=n).first()
+    stories = Story.query.filter_by(sprint=n).all()
+    return version_de({'r': [r.demo_json, r.cloturee, r.objectif_atteint, r.notes,
+                             [(x.id, x.texte, x.story_creee_id) for x in r.retours]] if r else None,
+                       's': [(x.id, x.statut) for x in stories]})
+
+def historique_revues(p):
+    out = []
+    for r in Revue.query.order_by(Revue.sprint).all():
+        if r.sprint > p.nb_sprints: continue
+        st = Story.query.filter_by(sprint=r.sprint).all()
+        engage = r.engage if r.cloturee else sum(x.points or 0 for x in st)
+        livre = r.livre if r.cloturee else sum(x.points or 0 for x in st if x.statut == 'Fait')
+        out.append({'r': r, 'engage': engage, 'livre': livre, 'retours': len(r.retours),
+                    'creees': sum(1 for x in r.retours if x.story_creee_id)})
+    return out
+
+@app.route('/revue')
+@connecte
+def revue():
+    p = get_projet()
+    n = sprint_demande(p)
+    r = get_revue(n)
+    stories = Story.query.filter_by(sprint=n).all()
+    prio_rang = {k: i for i, k in enumerate(PRIORITES)}
+    stories.sort(key=lambda s: (prio_rang.get(s.priorite, 9), s.id))
+    faites = [s for s in stories if s.statut == 'Fait']
+    restantes = [s for s in stories if s.statut != 'Fait']
+    sp = Sprint.query.filter_by(numero=n).first()
+    debut, fin = dates_sprint(p, n)
+    return render_template('revue.html', n=n, r=r, sp=sp, faites=faites, restantes=restantes, debut=debut, fin=fin,
+                           engage=sum(s.points or 0 for s in stories), livre=sum(s.points or 0 for s in faites),
+                           sprints=resume_sprints(p), VERDICTS=VERDICTS, version=etat_revue(n),
+                           histo=historique_revues(p), stories_sprint=stories,
+                           features=Feature.query.order_by(Feature.ordre, Feature.id).all(),
+                           story_par_id={x.id: x for x in Story.query.all()})
+
+@app.route('/api/revue/<int:n>/version')
+@connecte
+def api_revue_version(n):
+    return jsonify({'v': etat_revue(n)})
+
+@app.route('/api/revue/<int:n>/demo', methods=['POST'])
+@connecte
+def api_revue_demo(n):
+    r = get_revue(n)
+    if r.cloturee:
+        return jsonify({'ok': False, 'erreur': 'Revue clôturée'}), 409
+    d = request.get_json(silent=True) or {}
+    sid = str(int(d.get('story_id', 0)))
+    demo = r.demo
+    e = demo.get(sid, {})
+    if 'demo' in d: e['demo'] = bool(d['demo'])
+    if 'verdict' in d: e['verdict'] = d['verdict'] if d['verdict'] in dict(VERDICTS) else ''
+    demo[sid] = e
+    r.demo_json = json.dumps(demo); db.session.commit()
+    return jsonify({'ok': True, 'v': etat_revue(n)})
+
+@app.route('/revue/<int:n>/retour', methods=['POST'])
+@connecte
+def revue_retour(n):
+    r = get_revue(n)
+    texte = request.form.get('texte', '').strip()
+    if texte and not r.cloturee:
+        sid = request.form.get('story_id', type=int)
+        db.session.add(Retour(revue_id=r.id, texte=texte[:1000], auteur=session.get('username', ''),
+                              story_id=sid if sid and db.session.get(Story, sid) else None))
+        db.session.commit()
+    return redirect(url_for('revue', sprint=n) + '#retours')
+
+@app.route('/retour/<int:rid>/supprimer', methods=['POST'])
+@connecte
+def retour_supprimer(rid):
+    x = db.get_or_404(Retour, rid)
+    n = x.revue.sprint
+    if est_po() or x.auteur == session.get('username'):
+        db.session.delete(x); db.session.commit()
+    return redirect(url_for('revue', sprint=n) + '#retours')
+
+@app.route('/retour/<int:rid>/story', methods=['POST'])
+@po_requis
+def retour_story(rid):
+    x = db.get_or_404(Retour, rid)
+    p = get_projet()
+    f = db.session.get(Feature, request.form.get('feature_id', type=int) or 0)
+    nature = request.form.get('nature', '')
+    titre = request.form.get('titre', '').strip()
+    if not f or nature not in [k['code'] for k in natures(p)] or not titre:
+        flash('Pour créer la story, choisissez une nature, une feature et un titre.', 'error')
+        return redirect(url_for('revue', sprint=x.revue.sprint) + '#retours')
+    st = Story(feature_id=f.id, titre=titre[:200], nature=nature, priorite='P2',
+               description='Issue du retour client de la revue du sprint {} : « {} »'.format(x.revue.sprint, x.texte))
+    if x.story_id and parents_autorises(nature) != []:
+        parent = db.session.get(Story, x.story_id)
+        if parent and (parents_autorises(nature) is None or parent.nature in parents_autorises(nature)):
+            st.parent_id = parent.id
+    db.session.add(st); db.session.flush()
+    x.story_creee_id = st.id
+    db.session.commit()
+    flash('Story {} créée dans le backlog à partir du retour client : estimez-la et rendez-la prête pour un prochain sprint.'.format(st.numero()), 'success')
+    return redirect(url_for('revue', sprint=x.revue.sprint) + '#retours')
+
+@app.route('/revue/<int:n>/cloturer', methods=['POST'])
+@po_requis
+def revue_cloturer(n):
+    r = get_revue(n)
+    if request.form.get('rouvrir'):
+        r.cloturee = False
+        flash('Revue du sprint {} rouverte.'.format(n), 'success')
+    else:
+        st = Story.query.filter_by(sprint=n).all()
+        r.engage = sum(x.points or 0 for x in st)
+        r.livre = sum(x.points or 0 for x in st if x.statut == 'Fait')
+        r.objectif_atteint = request.form.get('objectif_atteint') if request.form.get('objectif_atteint') in ('oui', 'partiel', 'non') else ''
+        r.notes = request.form.get('notes', '').strip()
+        r.cloturee = True
+        flash('Revue du sprint {} clôturée : {} points livrés sur {} engagés.'.format(n, fmt(r.livre), fmt(r.engage)), 'success')
+    db.session.commit()
+    return redirect(url_for('revue', sprint=n))
+
+# ================================================================ Retrospective
+def etat_retro(n):
+    r = Retro.query.filter_by(sprint=n).first()
+    prev = ActionAmelioration.query.filter_by(sprint_cible=n).all()
+    return version_de({'r': [r.technique, r.phase, r.anonyme, r.roti_json,
+                             [(x.id, x.zone, x.texte, x.votes_json) for x in r.postits],
+                             [(a.id, a.texte, a.porteur, a.sprint_cible, a.statut) for a in r.actions]] if r else None,
+                       'p': [(a.id, a.statut) for a in prev]})
+
+def historique_retros(p):
+    out = []
+    for r in Retro.query.order_by(Retro.sprint).all():
+        out.append({'r': r, 'technique': TECHNIQUES_RETRO.get(r.technique, {}).get('nom', r.technique),
+                    'postits': len(r.postits), 'actions': len(r.actions),
+                    'faites': sum(1 for a in r.actions if a.statut == 'Faite'), 'roti': r.roti_moyen()})
+    return out
+
+def retro_ou_404(n):
+    r = Retro.query.filter_by(sprint=n).first()
+    if not r: abort(404)
+    return r
+
+@app.route('/retro')
+@connecte
+def retro():
+    p = get_projet()
+    n = sprint_demande(p)
+    r = Retro.query.filter_by(sprint=n).first()
+    moi = session.get('username', '')
+    precedentes = ActionAmelioration.query.filter_by(sprint_cible=n).order_by(ActionAmelioration.id).all()
+    precedentes = [a for a in precedentes if not r or a.retro_id != r.id]
+    mes_votes = sum(x.votes.count(moi) for x in r.postits) if r else 0
+    return render_template('retro.html', n=n, r=r, TECH=TECHNIQUES_RETRO, PHASES=PHASES_RETRO,
+                           VOTES=VOTES_PAR_PERSONNE, mes_votes=mes_votes, moi=moi,
+                           precedentes=precedentes, STATUTS_ACTION=STATUTS_ACTION,
+                           sprints=resume_sprints(p), version=etat_retro(n), histo=historique_retros(p))
+
+@app.route('/api/retro/<int:n>/version')
+@connecte
+def api_retro_version(n):
+    return jsonify({'v': etat_retro(n)})
+
+@app.route('/retro/<int:n>/demarrer', methods=['POST'])
+@po_requis
+def retro_demarrer(n):
+    t = request.form.get('technique')
+    if t not in TECHNIQUES_RETRO:
+        flash('Choisissez une technique de rétrospective.', 'error')
+        return redirect(url_for('retro', sprint=n))
+    r = Retro.query.filter_by(sprint=n).first()
+    if r and r.postits:
+        flash('La rétrospective a déjà des post-its : la technique ne peut plus changer.', 'error')
+    elif r:
+        r.technique = t; r.anonyme = bool(request.form.get('anonyme'))
+    else:
+        db.session.add(Retro(sprint=n, technique=t, anonyme=bool(request.form.get('anonyme'))))
+    db.session.commit()
+    return redirect(url_for('retro', sprint=n))
+
+@app.route('/retro/<int:n>/phase', methods=['POST'])
+@po_requis
+def retro_phase(n):
+    r = retro_ou_404(n)
+    r.phase = min(max(r.phase + (1 if request.form.get('sens') == '+' else -1), 0), len(PHASES_RETRO))
+    db.session.commit()
+    return redirect(url_for('retro', sprint=n))
+
+@app.route('/retro/<int:n>/anonyme', methods=['POST'])
+@po_requis
+def retro_anonyme(n):
+    r = retro_ou_404(n)
+    r.anonyme = not r.anonyme; db.session.commit()
+    return redirect(url_for('retro', sprint=n))
+
+@app.route('/retro/<int:n>/postit', methods=['POST'])
+@connecte
+def retro_postit(n):
+    r = retro_ou_404(n)
+    zones = [z[0] for z in TECHNIQUES_RETRO[r.technique]['zones']]
+    texte = request.form.get('texte', '').strip()
+    if r.phase <= 1 and texte and request.form.get('zone') in zones:
+        db.session.add(PostIt(retro_id=r.id, zone=request.form.get('zone'), texte=texte[:300], auteur=session.get('username', '')))
+        db.session.commit()
+    return redirect(url_for('retro', sprint=n) + '#zone-' + request.form.get('zone', ''))
+
+@app.route('/postit/<int:pid>/supprimer', methods=['POST'])
+@connecte
+def postit_supprimer(pid):
+    x = db.get_or_404(PostIt, pid)
+    n = x.retro.sprint
+    if x.retro.phase <= 1 and (est_po() or x.auteur == session.get('username')):
+        db.session.delete(x); db.session.commit()
+    return redirect(url_for('retro', sprint=n))
+
+@app.route('/api/postit/<int:pid>/vote', methods=['POST'])
+@connecte
+def api_postit_vote(pid):
+    x = db.get_or_404(PostIt, pid)
+    r = x.retro
+    if r.phase != 2:
+        return jsonify({'ok': False, 'erreur': "Le vote n'est pas ouvert."}), 409
+    moi = session.get('username', '')
+    d = request.get_json(silent=True) or {}
+    votes = x.votes
+    utilises = sum(p.votes.count(moi) for p in r.postits)
+    if d.get('retirer'):
+        if moi in votes: votes.remove(moi)
+    else:
+        if utilises >= VOTES_PAR_PERSONNE:
+            return jsonify({'ok': False, 'erreur': 'Vous avez utilisé vos {} votes. Retirez-en un pour revoter.'.format(VOTES_PAR_PERSONNE)}), 409
+        votes.append(moi)
+    x.votes_json = json.dumps(votes); db.session.commit()
+    return jsonify({'ok': True, 'votes': len(votes), 'miens': votes.count(moi),
+                    'restants': VOTES_PAR_PERSONNE - sum(p.votes.count(moi) for p in r.postits)})
+
+@app.route('/retro/<int:n>/action', methods=['POST'])
+@connecte
+def retro_action(n):
+    r = retro_ou_404(n)
+    texte = request.form.get('texte', '').strip()
+    if texte and r.phase >= 3:
+        cible = borne(request.form.get('sprint_cible'), 0, get_projet().nb_sprints, n + 1)
+        db.session.add(ActionAmelioration(retro_id=r.id, texte=texte[:300], porteur=request.form.get('porteur', '')[:80],
+                                          sprint_cible=cible, postit_id=request.form.get('postit_id', type=int)))
+        db.session.commit()
+    return redirect(url_for('retro', sprint=n) + '#actions')
+
+@app.route('/action/<int:aid>/statut', methods=['POST'])
+@connecte
+def action_statut(aid):
+    a = db.get_or_404(ActionAmelioration, aid)
+    if request.form.get('supprimer'):
+        n = a.retro.sprint; db.session.delete(a); db.session.commit()
+        return redirect(url_for('retro', sprint=n) + '#actions')
+    if request.form.get('statut') in STATUTS_ACTION:
+        a.statut = request.form.get('statut')
+    if 'porteur' in request.form:
+        a.porteur = request.form.get('porteur', '')[:80]
+    db.session.commit()
+    return redirect(request.form.get('retour') if request.form.get('retour', '').startswith('/') else url_for('retro', sprint=a.retro.sprint))
+
+@app.route('/api/retro/<int:n>/roti', methods=['POST'])
+@connecte
+def api_retro_roti(n):
+    r = retro_ou_404(n)
+    d = request.get_json(silent=True) or {}
+    roti = r.roti
+    roti[session.get('username', '')] = borne(d.get('note'), 1, 5, 3)
+    r.roti_json = json.dumps(roti); db.session.commit()
+    return jsonify({'ok': True, 'moyenne': r.roti_moyen(), 'nb': len(roti)})
 
 if __name__ == '__main__':
     app.run(debug=True, port=int(os.environ.get('PORT', 5000)))

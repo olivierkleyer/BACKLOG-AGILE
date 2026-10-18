@@ -39,6 +39,8 @@
 .kmove button:hover{background:var(--blue-light);color:var(--blue)}
 .dod-ko{color:var(--amber);font-weight:700}
 .dod-ok{color:var(--green);font-weight:700}
+.ameliorations{border-left:4px solid var(--purple)}
+.ameliorations ul{list-style:none;display:flex;flex-direction:column;gap:6px;font-size:13px}
 .vide-col{text-align:center;font-size:12px;color:var(--gray-500);padding:20px 0}
 .jour{display:flex;align-items:center;gap:10px}
 .jour form{display:inline}
@@ -98,6 +100,16 @@
     <div class="stat-sub">{% if est_po %}› après chaque daily scrum{% else %}avancé par le PO{% endif %}</div></div>
 </div>
 
+{% if ameliorations %}
+<div class="card ameliorations">
+  <div class="card-title" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span>&#128260; Améliorations décidées en rétrospective pour ce sprint</span><a class="small" href="{{ url_for('retro', sprint=n) }}">Bilan à la prochaine rétro &rarr;</a></div>
+  <ul>
+  {% for a in ameliorations %}
+    <li><span class="badge st-{{ 'Fait' if a.statut=='Faite' else ('En-cours' if a.statut=='A faire' else 'A-faire') }}">{{ a.statut }}</span> {{ a.texte }}{% if a.porteur %} <span class="muted small">· {{ court(a.porteur) }}</span>{% endif %}</li>
+  {% endfor %}
+  </ul>
+</div>
+{% endif %}
 <div class="board">
   {% for st in STATUTS %}
   <div class="col" data-statut="{{ st }}">

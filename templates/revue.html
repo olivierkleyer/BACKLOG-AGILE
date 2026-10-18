@@ -1,0 +1,195 @@
+{% extends 'base.html' %}
+{% from '_porteurs.html' import porteurs with context %}
+{% block title %}Revue · Sprint {{ n }}{% endblock %}
+{% block page_title %}Revue du sprint {{ n }}{% endblock %}
+{% block topbar_actions %}
+  {% if debut %}<span class="small muted">du {{ debut.strftime('%d/%m/%Y') }} au {{ fin.strftime('%d/%m/%Y') }}</span>{% endif %}
+  {% if r.cloturee %}<span class="badge st-Fait">Clôturée</span>{% else %}<span class="badge st-En-cours">En cours</span>{% endif %}
+{% endblock %}
+{% block extra_css %}
+<style>
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tab{padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;color:var(--gray-700);background:white;border:1px solid var(--gray-200)}
+.tab.active{background:var(--navy);color:white;border-color:var(--navy)}
+.tab .ok{color:var(--green);margin-left:4px}
+.etape{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;border-radius:50%;background:var(--navy);color:white;font-size:12px;font-weight:800;margin-right:8px}
+.demo-row{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:12px;align-items:center;padding:10px 0;border-bottom:1px solid var(--gray-100)}
+.demo-row:last-child{border-bottom:none}
+.demo-row .t a{font-weight:700;color:var(--navy);text-decoration:none}
+.demo-row .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--gray-500);margin-top:3px}
+.chk{display:flex;gap:6px;align-items:center;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+.chk input{width:17px;height:17px;accent-color:var(--green)}
+.verdict{width:170px}
+.v-acceptee{border-color:#86efac!important;background:var(--green-light)!important}
+.v-retravailler{border-color:#fcd34d!important;background:var(--amber-light)!important}
+.v-refusee{border-color:#fca5a5!important;background:var(--red-light)!important}
+.retour{border:1px solid var(--gray-200);border-left:4px solid var(--purple);border-radius:10px;padding:10px 12px;margin-bottom:10px}
+.retour .txt{font-size:14px;line-height:1.45}
+.retour .meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--gray-500);margin-top:6px}
+.retour form.creer{display:none;gap:8px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--gray-200)}
+.retour form.creer.open{display:flex}
+.retour form.creer select,.retour form.creer input{width:auto;flex:1;min-width:150px}
+.ajout-retour{display:grid;grid-template-columns:minmax(0,1fr) 260px auto;gap:10px;align-items:start}
+.cloture{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:12px}
+.cloture label{display:flex;gap:8px;align-items:center;font-size:13px;cursor:pointer}
+.histo-chart{width:100%;height:auto;display:block;margin-top:6px}
+.leg{display:flex;gap:16px;font-size:12px;color:var(--gray-700);margin-top:8px}
+.leg i{display:inline-block;width:12px;height:12px;border-radius:3px;vertical-align:-1px;margin-right:6px}
+@media(max-width:768px){.demo-row{grid-template-columns:1fr}.ajout-retour{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="tabs">
+  {% for x in sprints %}{% set hr = (histo|selectattr('r.sprint','equalto',x.sprint.numero)|list) %}
+  <a class="tab {% if x.sprint.numero==n %}active{% endif %}" href="{{ url_for('revue', sprint=x.sprint.numero) }}">S{{ x.sprint.numero }}{% if hr and hr[0].r.cloturee %}<span class="ok">&#10003;</span>{% endif %}</a>
+  {% endfor %}
+</div>
+
+<div class="stats-grid">
+  <div class="stat-card" style="grid-column:span 2"><div class="stat-label">Objectif du sprint</div><div style="font-size:14px;line-height:1.45">{{ sp.objectif or '—' }}</div>
+    {% if r.cloturee %}<div class="stat-sub">Atteint : <b>{{ {'oui':'oui','partiel':'partiellement','non':'non'}.get(r.objectif_atteint, 'non renseigné') }}</b></div>{% endif %}</div>
+  <div class="stat-card"><div class="stat-label">Points livrés / engagés</div><div class="stat-value">{{ (r.livre if r.cloturee else livre)|fmt }}<span style="font-size:15px;color:var(--gray-500)"> / {{ (r.engage if r.cloturee else engage)|fmt }}</span></div>
+    <div class="stat-sub">{{ 'figé à la clôture' if r.cloturee else 'en direct' }}</div></div>
+  <div class="stat-card"><div class="stat-label">Retours clients</div><div class="stat-value">{{ r.retours|length }}</div>
+    <div class="stat-sub">{{ r.retours|selectattr('story_creee_id')|list|length }} transformé(s) en story</div></div>
+</div>
+
+<div class="card">
+  <div class="card-title"><span class="etape">1</span>Démonstration des stories terminées</div>
+  <p class="small muted" style="margin:-6px 0 10px">Montrez chaque story « Fait » aux parties prenantes, puis notez leur verdict. Tout le monde voit les mêmes informations en direct.</p>
+  {% for s in faites %}{% set NS = nat(s.nature) %}{% set d = r.demo.get(s.id|string, {}) %}
+  <div class="demo-row" data-id="{{ s.id }}">
+    <div class="t"><span class="nat-badge" style="--c:{{ NS.couleur }}">{{ NS.nom }}</span> <a href="{{ url_for('story', sid=s.id) }}">{{ s.numero() }} · {{ s.titre }}</a>
+      <div class="meta"><span class="mono">{{ s.points|fmt }} pts</span>{{ porteurs(s) }}</div></div>
+    <label class="chk"><input type="checkbox" class="j-demo" {% if d.demo %}checked{% endif %} {% if r.cloturee %}disabled{% endif %}> Démontrée</label>
+    <select class="verdict j-verdict {{ 'v-' ~ d.verdict if d.verdict }}" {% if r.cloturee %}disabled{% endif %}>
+      <option value="">Verdict…</option>
+      {% for code, lib in VERDICTS %}<option value="{{ code }}" {% if d.verdict==code %}selected{% endif %}>{{ lib }}</option>{% endfor %}
+    </select>
+  </div>
+  {% else %}
+  <p class="muted small">Aucune story terminée dans ce sprint : rien à démontrer.</p>
+  {% endfor %}
+  {% if restantes %}
+  <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--gray-100)">
+    <div class="lbl" style="margin-bottom:8px">Non terminées · non démontrées ({{ restantes|length }})</div>
+    {% for s in restantes %}<div class="small" style="padding:3px 0"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span> <a href="{{ url_for('story', sid=s.id) }}">{{ s.numero() }} · {{ s.titre }}</a> <span class="muted">· {{ s.points|fmt }} pts</span></div>{% endfor %}
+    <p class="small muted" style="margin-top:6px">Elles retournent au backlog : replanifiez-les depuis leur fiche ou la page Releases &amp; sprints.</p>
+  </div>
+  {% endif %}
+</div>
+
+<div class="card" id="retours">
+  <div class="card-title"><span class="etape">2</span>Retours clients et adaptation du produit</div>
+  {% if not r.cloturee %}
+  <form method="post" action="{{ url_for('revue_retour', n=n) }}" class="ajout-retour">
+    <textarea name="texte" rows="2" placeholder="Retour d'un client ou d'une partie prenante (ex : « la carte doit aussi montrer le niveau de batterie »)" required></textarea>
+    <select name="story_id"><option value="">Story concernée (facultatif)</option>{% for s in stories_sprint %}<option value="{{ s.id }}">{{ s.numero() }} · {{ s.titre }}</option>{% endfor %}</select>
+    <button class="btn btn-primary btn-sm">+ Retour</button>
+  </form>
+  <div style="height:14px"></div>
+  {% endif %}
+  {% for x in r.retours %}
+  <div class="retour">
+    <div class="txt">« {{ x.texte }} »</div>
+    <div class="meta">
+      <span>noté par {{ court(x.auteur) }}</span>
+      {% if x.story_id and story_par_id.get(x.story_id) %}<span>· sur <a href="{{ url_for('story', sid=x.story_id) }}">{{ story_par_id[x.story_id].numero() }}</a></span>{% endif %}
+      {% if x.story_creee_id and story_par_id.get(x.story_creee_id) %}<span class="badge st-Fait">&#10140;&nbsp;story&nbsp;<a href="{{ url_for('story', sid=x.story_creee_id) }}">{{ story_par_id[x.story_creee_id].numero() }}</a>&nbsp;créée</span>
+      {% elif est_po %}<button type="button" class="btn btn-ghost btn-sm j-creer">&#10140; Créer une story à partir de ce retour</button>{% endif %}
+      {% if (est_po or x.auteur==session.username) and not r.cloturee %}<form method="post" action="{{ url_for('retour_supprimer', rid=x.id) }}" style="margin-left:auto" onsubmit="return confirm('Supprimer ce retour ?')"><button class="btn-link">&#10005;</button></form>{% endif %}
+    </div>
+    {% if est_po and not x.story_creee_id %}{% set sc = story_par_id.get(x.story_id) %}
+    <form class="creer" method="post" action="{{ url_for('retour_story', rid=x.id) }}">
+      <select name="nature" required><option value="" disabled selected>Nature…</option>{% for k in NATURES %}<option value="{{ k.code }}">{{ k.nom }}</option>{% endfor %}</select>
+      <select name="feature_id" required>{% for f in features %}<option value="{{ f.id }}" {% if sc and sc.feature_id==f.id %}selected{% endif %}>{{ f.nom }}</option>{% endfor %}</select>
+      <input type="text" name="titre" value="{{ x.texte[:80] }}" required>
+      <button class="btn btn-success btn-sm">Créer dans le backlog</button>
+    </form>
+    {% endif %}
+  </div>
+  {% else %}
+  <p class="muted small">Aucun retour pour l'instant.</p>
+  {% endfor %}
+</div>
+
+<div class="card">
+  <div class="card-title"><span class="etape">3</span>Clôture de la revue</div>
+  {% if r.cloturee %}
+    <p style="font-size:14px">Revue clôturée : <b>{{ r.livre|fmt }}</b> points livrés sur <b>{{ r.engage|fmt }}</b> engagés · objectif atteint : <b>{{ {'oui':'oui','partiel':'partiellement','non':'non'}.get(r.objectif_atteint, 'non renseigné') }}</b>.</p>
+    {% if r.notes %}<p class="small" style="margin-top:6px;white-space:pre-line">{{ r.notes }}</p>{% endif %}
+    {% if est_po %}<form method="post" action="{{ url_for('revue_cloturer', n=n) }}" style="margin-top:10px"><input type="hidden" name="rouvrir" value="1"><button class="btn btn-ghost btn-sm">Rouvrir la revue</button></form>{% endif %}
+  {% elif est_po %}
+    <form method="post" action="{{ url_for('revue_cloturer', n=n) }}">
+      <div class="lbl" style="margin-bottom:8px">L'objectif du sprint est-il atteint ?</div>
+      <div class="cloture">
+        <label><input type="radio" name="objectif_atteint" value="oui" required> Oui</label>
+        <label><input type="radio" name="objectif_atteint" value="partiel"> Partiellement</label>
+        <label><input type="radio" name="objectif_atteint" value="non"> Non</label>
+      </div>
+      <div class="field"><label>Notes de synthèse (facultatif)</label><textarea name="notes" rows="2" placeholder="Décisions prises, prochaines priorités…"></textarea></div>
+      <button class="btn btn-primary btn-sm">Clôturer la revue et figer le bilan</button>
+      <p class="small muted" style="margin-top:8px">La clôture fige les points engagés et livrés : ils alimentent la vélocité et l'historique.</p>
+    </form>
+  {% else %}
+    <p class="muted small">Le Product Owner clôture la revue en fin de séance.</p>
+  {% endif %}
+</div>
+
+<div class="card">
+  <div class="card-title">Historique des revues</div>
+  {% set closes = histo|selectattr('r.cloturee')|list %}
+  {% if histo %}
+  <table class="data-table cards-mobile">
+    <thead><tr><th>Sprint</th><th>Statut</th><th>Objectif atteint</th><th class="c">Engagé</th><th class="c">Livré</th><th class="c">Retours</th><th class="c">Stories créées</th></tr></thead>
+    <tbody>
+    {% for h in histo %}
+      <tr><td><a href="{{ url_for('revue', sprint=h.r.sprint) }}"><b>S{{ h.r.sprint }}</b></a></td>
+        <td>{% if h.r.cloturee %}<span class="badge st-Fait">Clôturée</span>{% else %}<span class="badge st-En-cours">En cours</span>{% endif %}</td>
+        <td>{{ {'oui':'Oui','partiel':'Partiellement','non':'Non'}.get(h.r.objectif_atteint, '—') }}</td>
+        <td class="c mono">{{ h.engage|fmt }}</td><td class="c mono">{{ h.livre|fmt }}</td><td class="c">{{ h.retours }}</td><td class="c">{{ h.creees }}</td></tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% if closes %}{% set mx = [closes|map(attribute='engage')|max, closes|map(attribute='livre')|max, 1]|max %}{% set W = 760 %}{% set bw = [80, (W - 80) / closes|length]|min %}
+  <div class="lbl" style="margin-top:18px">Vélocité : points livrés par sprint (revues clôturées)</div>
+  <svg class="histo-chart" viewBox="0 0 {{ W }} 200" role="img" aria-label="Points engagés et livrés par sprint">
+    {% for t in range(0, 5) %}{% set y = 20 + 150 * t / 4 %}<line x1="40" x2="{{ W - 10 }}" y1="{{ y }}" y2="{{ y }}" stroke="#e2e8f0"/><text x="34" y="{{ y + 4 }}" text-anchor="end" font-size="11" fill="#64748b">{{ ((mx * (4 - t) / 4)|round(0)|int) }}</text>{% endfor %}
+    {% for h in closes %}{% set x = 50 + loop.index0 * bw %}
+      {% set he = 150 * h.engage / mx %}{% set hl = 150 * h.livre / mx %}
+      <rect x="{{ x + bw*0.15 }}" y="{{ 170 - he }}" width="{{ bw*0.32 }}" height="{{ he }}" rx="3" fill="#cbd5e1"><title>S{{ h.r.sprint }} · engagé {{ h.engage|fmt }} pts</title></rect>
+      <rect x="{{ x + bw*0.5 }}" y="{{ 170 - hl }}" width="{{ bw*0.32 }}" height="{{ hl }}" rx="3" fill="#2563eb"><title>S{{ h.r.sprint }} · livré {{ h.livre|fmt }} pts</title></rect>
+      <text x="{{ x + bw*0.5 }}" y="188" text-anchor="middle" font-size="11" fill="#334155">S{{ h.r.sprint }}</text>
+    {% endfor %}
+  </svg>
+  <div class="leg"><span><i style="background:#cbd5e1"></i>Engagé</span><span><i style="background:#2563eb"></i>Livré</span><span class="muted">Vélocité moyenne : <b>{{ ((closes|sum(attribute='livre')) / closes|length)|round(1)|fmt }}</b> pts / sprint</span></div>
+  {% endif %}
+  {% else %}<p class="muted small">Aucune revue pour l'instant.</p>{% endif %}
+</div>
+{% endblock %}
+{% block scripts %}
+<script>
+var N = {{ n }}, VERSION = {{ version|tojson }}, enCours = false;
+function poster(sid, data){
+  enCours = true; data.story_id = sid;
+  return fetch('/api/revue/' + N + '/demo', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(data)})
+    .then(function(r){ return r.json(); }).then(function(j){ if (j.v) VERSION = j.v; })
+    .catch(function(){ alert('Enregistrement impossible.'); }).finally(function(){ enCours = false; });
+}
+document.querySelectorAll('.demo-row').forEach(function(row){
+  var sid = row.dataset.id, c = row.querySelector('.j-demo'), v = row.querySelector('.j-verdict');
+  c.addEventListener('change', function(){ poster(sid, {demo: c.checked}); });
+  v.addEventListener('change', function(){ v.className = 'verdict j-verdict' + (v.value ? ' v-' + v.value : ''); poster(sid, {verdict: v.value}); });
+});
+document.querySelectorAll('.j-creer').forEach(function(b){
+  b.addEventListener('click', function(){ var f = b.closest('.retour').querySelector('form.creer'); f.classList.toggle('open'); });
+});
+// Vue partagee : rechargement quand un autre participant modifie la revue (sauf pendant une saisie)
+setInterval(function(){
+  if (enCours || document.hidden) return;
+  var a = document.activeElement;
+  if (a && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && a.type === 'text')) && a.value) return;
+  fetch('/api/revue/' + N + '/version').then(function(r){ return r.json(); }).then(function(j){ if (j.v !== VERSION) location.reload(); }).catch(function(){});
+}, 5000);
+</script>
+{% endblock %}
