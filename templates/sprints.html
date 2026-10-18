@@ -113,7 +113,7 @@ tr.courant td{background:var(--blue-ll)}
   {% endif %}
 
   {% if est_po %}
-  <form method="post" action="{{ url_for('release_ajouter') }}" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-100)">
+  <form id="nouvelle-release" method="post" action="{{ url_for('release_ajouter') }}" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-100)">
     <input type="text" name="nom" placeholder="Nouvelle release (ex : R1 – MVP)" required style="flex:1;min-width:180px">
     <input type="number" name="nb_sprints" min="1" max="{{ SPRINTS_MAX }}" value="2" style="width:90px" title="Nombre de sprints">
     <input type="text" name="objectif" placeholder="Objectif (facultatif)" style="flex:2;min-width:200px">

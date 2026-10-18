@@ -262,17 +262,18 @@ def parcours(p):
     """Fil conducteur : les 6 etapes du PO et de l'equipe, avec la prochaine action."""
     stories = Story.query.all()
     pretes = [s for s in stories if s.points and s.est_prete(p.dor_commune)]
+    premiere = Feature.query.order_by(Feature.ordre, Feature.id).first()
     a_affiner = next((s for s in stories if not (s.points and s.est_prete(p.dor_commune))), None)
     etapes = [
         {'n': 1, 'nom': 'Releases', 'ok': Release.query.count() > 0, 'po': True,
          'action': 'Créez une release et indiquez son nombre de sprints.',
-         'lien': url_for('sprints') + '#releases', 'bouton': 'Créer une release'},
+         'lien': url_for('sprints') + '#nouvelle-release', 'bouton': 'Créer une release'},
         {'n': 2, 'nom': 'Features', 'ok': Feature.query.count() > 0, 'po': True,
          'action': 'Créez une feature et rattachez-la à une release.',
          'lien': url_for('backlog') + '#nouvelle-feature', 'bouton': 'Créer une feature'},
         {'n': 3, 'nom': 'User stories', 'ok': len(stories) > 0, 'po': True,
          'action': 'Ajoutez des user stories dans une feature (champ « Nouvelle user story » sous la feature).',
-         'lien': url_for('backlog'), 'bouton': 'Ajouter des stories'},
+         'lien': url_for('backlog') + ('#feature-{}'.format(premiere.id) if premiere else ''), 'bouton': 'Ajouter des stories'},
         {'n': 4, 'nom': 'Estimer et rendre prêtes', 'ok': len(pretes) > 0, 'po': False,
          'action': "Ouvrez chaque story : estimez-la en points et cochez sa Definition of Ready.",
          'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'), 'bouton': 'Affiner une story'},
@@ -477,7 +478,7 @@ def backlog():
              'non_estimees': sum(1 for s in toutes if not s.points)}
     return render_template('backlog.html', blocs=blocs, stats=stats, dod_commune=p.dod_commune, dor_commune=p.dor_commune,
                            filtre_sprint=filtre_sprint, filtre_statut=filtre_statut, filtre_release=filtre_release,
-                           releases=Release.query.order_by(Release.ordre, Release.id).all(),
+                           releases=Release.query.order_by(Release.ordre, Release.id).all(), cal_rel=cal,
                            responsables=responsables_connus())
 
 def release_valide(v):
@@ -491,8 +492,15 @@ def feature_ajouter():
     nom = request.form.get('nom', '').strip()
     if nom:
         ordre = (db.session.query(db.func.max(Feature.ordre)).scalar() or 0) + 1
-        db.session.add(Feature(nom=nom[:200], release_id=release_valide(request.form.get('release_id')), ordre=ordre))
-        db.session.commit()
+        f = Feature(nom=nom[:200], release_id=release_valide(request.form.get('release_id')), ordre=ordre)
+        db.session.add(f); db.session.commit()
+        c = next((c for c in calendrier_releases(get_projet()) if c['r'].id == f.release_id), None)
+        if c:
+            flash('Feature « {} » créée dans la release « {} » (sprints S{} à S{}). Ajoutez-lui maintenant ses user stories.'.format(
+                f.nom, c['r'].nom, c['s1'], c['s2']), 'success')
+        else:
+            flash('Feature « {} » créée, sans release. Ajoutez-lui maintenant ses user stories.'.format(f.nom), 'success')
+        return redirect(url_for('backlog') + '#feature-{}'.format(f.id))
     return redirect(url_for('backlog'))
 
 @app.route('/feature/<int:fid>/modifier', methods=['POST'])

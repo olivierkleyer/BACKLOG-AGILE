@@ -22,6 +22,10 @@
 .ajout-story{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .ajout-story input{flex:1;min-width:220px}
 .ajout-story select{width:90px}
+.nf-form{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) auto;gap:12px;align-items:end}
+.nf-form .field{margin:0}
+.nf-aide{font-size:12px;color:var(--gray-500);margin-top:8px}
+@media(max-width:768px){.nf-form{grid-template-columns:1fr}}
 .vide{padding:18px;text-align:center;color:var(--gray-500);font-size:13px}
 .feat-prog{display:flex;align-items:center;gap:8px;font-size:12px;color:var(--gray-500)}
 .feat-prog .progress{width:120px}
@@ -65,7 +69,7 @@
 {% endif %}
 
 {% for b in blocs %}
-<div class="card">
+<div class="card" id="feature-{{ b.f.id }}">
   <div class="feat-head">
     <div>
       <span class="feat-name">{{ b.f.nom }}</span>{% if b.cal %}<span class="feat-rel rc{{ b.cal.i % 6 }}">{{ b.cal.r.nom }}<small>S{{ b.cal.s1 }}{% if b.cal.s2 > b.cal.s1 %}→S{{ b.cal.s2 }}{% endif %}{% if b.cal.fin %} · fin {{ b.cal.fin.strftime('%d/%m/%Y') }}{% endif %}</small></span>{% else %}<span class="feat-rel none">sans release</span>{% endif %}
@@ -131,11 +135,24 @@
 {% if est_po %}
 <div class="card no-print" id="nouvelle-feature">
   <div class="card-title">Nouvelle feature</div>
-  <form method="post" action="{{ url_for('feature_ajouter') }}" style="display:flex;gap:10px;flex-wrap:wrap">
-    <input type="text" name="nom" placeholder="Nom de la feature (ex : Gestion du parcours de vendange)" required style="flex:2;min-width:240px">
-    <select name="release_id" style="flex:1;min-width:160px"><option value="">Sans release</option>{% for r in releases %}<option value="{{ r.id }}" {% if filtre_release==r.id|string or (releases|length==1) %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}</select>
+  <form method="post" action="{{ url_for('feature_ajouter') }}" class="nf-form">
+    <div class="field"><label>Nom de la feature</label>
+      <input type="text" name="nom" placeholder="ex : Gestion du parcours de vendange" required></div>
+    <div class="field"><label>Release de rattachement</label>
+      <select name="release_id" id="nf-release">
+        {% for r in releases %}{% set c = cal_rel.get(r.id) %}<option value="{{ r.id }}" data-aide="Ses stories devront être planifiées dans les sprints S{{ c.s1 }} à S{{ c.s2 }}{% if c.fin %} (fin de la release le {{ c.fin.strftime('%d/%m/%Y') }}){% endif %}." {% if filtre_release==r.id|string or loop.first %}selected{% endif %}>{{ r.nom }} · S{{ c.s1 }}→S{{ c.s2 }}</option>{% endfor %}
+        <option value="" data-aide="Sans release : ses stories pourront être planifiées dans n'importe quel sprint, sans date de fin de release." {% if filtre_release=='0' or not releases %}selected{% endif %}>Sans release</option>
+      </select></div>
     <button class="btn btn-success">+ Feature</button>
   </form>
+  <p class="nf-aide" id="nf-aide"></p>
 </div>
 {% endif %}
+{% endblock %}
+{% block scripts %}
+<script>
+(function(){ var sel=document.getElementById('nf-release'), aide=document.getElementById('nf-aide'); if(!sel) return;
+  function maj(){ var o=sel.options[sel.selectedIndex]; aide.textContent=o?o.dataset.aide:''; }
+  sel.addEventListener('change',maj); maj(); })();
+</script>
 {% endblock %}

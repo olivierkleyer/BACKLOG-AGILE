@@ -80,6 +80,8 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .pstep.cur b{background:var(--blue);color:white}
 .parcours-next{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px}
 .parcours-next .who{font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.6px;margin-right:6px}
+.cible{animation:cible 2.6s ease-out}
+@keyframes cible{0%,60%{box-shadow:0 0 0 3px var(--blue),0 0 0 8px rgba(37,99,235,.18)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
 .parcours.ferme .parcours-steps,.parcours.ferme .parcours-next{display:none}
 .parcours.ferme{padding:10px 18px}
 .mobile-title small{font-weight:500;opacity:.6;margin-left:6px}
@@ -230,6 +232,22 @@ document.querySelectorAll('table.cards-mobile').forEach(function(t){
 document.querySelectorAll('table.data-table').forEach(function(t){
   var p=t.parentElement; if(p.classList.contains('table-scroll')) return;
   var w=document.createElement('div'); w.className='table-scroll'; p.insertBefore(w,t); w.appendChild(t);
+});
+// Amener l'utilisateur au bon champ : met en evidence la zone cible et y place le curseur
+function viser(id){
+  var el=id&&document.getElementById(id); if(!el) return false;
+  el.scrollIntoView({behavior:'smooth',block:'center'});
+  el.classList.remove('cible'); void el.offsetWidth; el.classList.add('cible');
+  var f=el.querySelector('.ajout-story input[name=titre]')||el.querySelector('input[type=text]:not([disabled]),select:not([disabled])');
+  if(f) setTimeout(function(){ try{ f.focus({preventScroll:true}); }catch(e){ f.focus(); } },350);
+  return true;
+}
+if(location.hash) viser(location.hash.slice(1));
+document.querySelectorAll('.parcours-next a, .pstep').forEach(function(a){
+  a.addEventListener('click',function(e){
+    var u=new URL(a.href, location.href);
+    if(u.pathname===location.pathname && u.hash && viser(u.hash.slice(1))){ e.preventDefault(); history.replaceState(null,'',u.hash); }
+  });
 });
 (function(){ var p=document.getElementById('parcours'), b=document.getElementById('parcours-toggle'); if(!p) return;
   var ferme=false; try{ ferme=localStorage.getItem('parcours-ferme')==='1'; }catch(e){}
