@@ -18,10 +18,13 @@
 .feat-edit input{max-width:260px}
 .story-link{font-weight:600;color:var(--navy);text-decoration:none}
 .story-link:hover{color:var(--blue);text-decoration:underline}
-.us-id{font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500)}
+.us-id{font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500);white-space:nowrap}
 .ajout-story{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .ajout-story input{flex:1;min-width:220px}
 .ajout-story select{width:90px}
+.ajout-story select.nat-sel{width:auto;min-width:190px}
+.ref-parent{font-size:11px;color:var(--gray-500);margin-left:6px;white-space:nowrap}
+td.us-id{border-left:4px solid var(--c,transparent)}
 .nf-form{display:grid;grid-template-columns:minmax(0,2fr) minmax(0,1.3fr) auto;gap:12px;align-items:end}
 .nf-form .field{margin:0}
 .nf-aide{font-size:12px;color:var(--gray-500);margin-top:8px}
@@ -47,6 +50,11 @@
       <option value="0" {% if filtre_release=='0' %}selected{% endif %}>Sans release</option>
       {% for r in releases %}<option value="{{ r.id }}" {% if filtre_release==r.id|string %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
     </select></div>
+  <div class="field"><label>Nature</label>
+    <select name="nature" onchange="this.form.submit()">
+      <option value="">Toutes</option>
+      {% for n in NATURES %}<option value="{{ n.code }}" {% if filtre_nature==n.code %}selected{% endif %}>{{ n.nom }}</option>{% endfor %}
+    </select></div>
   <div class="field"><label>Sprint</label>
     <select name="sprint" onchange="this.form.submit()">
       <option value="">Tous</option>
@@ -58,13 +66,13 @@
       <option value="">Tous</option>
       {% for st in STATUTS %}<option {% if filtre_statut==st %}selected{% endif %}>{{ st }}</option>{% endfor %}
     </select></div>
-  {% if filtre_sprint or filtre_statut or filtre_release %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
+  {% if filtre_sprint or filtre_statut or filtre_release or filtre_nature %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
 </form>
 
 {% if not blocs %}
 <div class="card vide">
   Le backlog est vide.
-  {% if est_po %}Commencez par créer une <strong>feature</strong> ci-dessous, puis ajoutez-lui des user stories.{% else %}Le Product Owner n'a pas encore créé de feature.{% endif %}
+  {% if est_po %}Commencez par créer une <strong>feature</strong> ci-dessous, puis ajoutez-lui des stories.{% else %}Le Product Owner n'a pas encore créé de feature.{% endif %}
 </div>
 {% endif %}
 
@@ -97,12 +105,12 @@
 
   {% if b.stories %}
   <table class="data-table cards-mobile with-head">
-    <thead><tr><th>N°</th><th>User story</th><th class="c">Resp.</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c" title="Definition of Ready : critères cochés / total">DoR</th><th class="c" title="Définition du Fini : critères cochés / total">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
+    <thead><tr><th>N°</th><th>Story</th><th class="c">Resp.</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c" title="Definition of Ready : critères cochés / total">DoR</th><th class="c" title="Définition du Fini : critères cochés / total">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
     <tbody>
     {% for s in b.stories %}{% set d = s.dod_etat(dod_commune) %}
-      <tr>
+      {% set NS = nat(s.nature) %}<tr style="--c:{{ NS.couleur }}">
         <td class="us-id m-hide">{{ s.numero() }}</td>
-        <td class="card-head"><a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a></td>
+        <td class="card-head"><span class="nat-badge" style="--c:{{ NS.couleur }}">{{ NS.nom }}</span> <a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% if s.parent %}<span class="ref-parent" title="Rattachée à {{ s.parent.titre }}">&#8627; {{ s.parent.numero() }}</span>{% endif %}</td>
         <td class="c mono small">{{ s.responsable or '—' }}</td>
         <td class="c"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span></td>
         <td class="c mono">{{ s.points|fmt if s.points else '—' }}{% if s.points %} <span class="muted small">pts</span>{% endif %}</td>
@@ -116,7 +124,7 @@
     </tbody>
   </table>
   {% elif not (filtre_sprint or filtre_statut) %}
-  <div class="vide">Aucune story dans cette feature.{% if est_po %} Ajoutez-en une avec le champ « Nouvelle user story » ci-dessous.{% endif %}</div>
+  <div class="vide">Aucune story dans cette feature.{% if est_po %} Ajoutez-en une ci-dessous : choisissez sa nature, puis son titre.{% endif %}</div>
   {% else %}
   <div class="vide">Aucune story ne correspond aux filtres.</div>
   {% endif %}
@@ -124,7 +132,11 @@
   {% if est_po %}
   <form class="ajout-story no-print" method="post" action="{{ url_for('story_ajouter') }}">
     <input type="hidden" name="feature_id" value="{{ b.f.id }}">
-    <input type="text" name="titre" placeholder="Nouvelle user story : titre court…" required>
+    <select name="nature" class="nat-sel" required title="Nature de la story">
+      <option value="" selected disabled>Nature…</option>
+      {% for n in NATURES %}<option value="{{ n.code }}">{{ n.nom }}</option>{% endfor %}
+    </select>
+    <input type="text" name="titre" placeholder="Nouvelle story : titre court…" required>
     <select name="priorite">{% for p in PRIORITES %}<option {% if p=='P2' %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
     <button class="btn btn-primary btn-sm">+ Story</button>
   </form>

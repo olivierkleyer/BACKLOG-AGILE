@@ -84,6 +84,9 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 @keyframes cible{0%,60%{box-shadow:0 0 0 3px var(--blue),0 0 0 8px rgba(37,99,235,.18)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
 .parcours.ferme .parcours-steps,.parcours.ferme .parcours-next{display:none}
 .parcours.ferme{padding:10px 18px}
+.nat-badge{--c:#64748b;display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 11%,white);border:1px solid color-mix(in srgb,var(--c) 32%,white);white-space:nowrap;vertical-align:middle;line-height:1.4}
+.andon{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 3px rgba(220,38,38,.22);vertical-align:middle;animation:andon 1.6s ease-in-out infinite;flex:none}
+@keyframes andon{50%{box-shadow:0 0 0 6px rgba(220,38,38,.06)}}
 .mobile-title small{font-weight:500;opacity:.6;margin-left:6px}
 /* Badges */
 .badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
@@ -147,6 +150,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
   table.cards-mobile.with-head td::before{float:none;display:inline;margin-right:5px;font-size:9px}
   table.cards-mobile.with-head td.card-head{flex:1 1 100%;font-size:14px;margin-bottom:4px}
   table.cards-mobile.with-head td.m-hide{display:none}
+  table.cards-mobile.with-head tr{border-left:4px solid var(--c,var(--gray-200))}
   table.cards-mobile.with-head td.card-head::before{display:none}
   table.cards-mobile tfoot tr{background:var(--gray-50)}
   .banner-ro{font-size:12px;padding:10px 12px}

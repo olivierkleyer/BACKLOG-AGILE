@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, abort
+from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, abort, Response
 from datetime import datetime, timedelta, date
 from collections import defaultdict
 from functools import wraps
@@ -34,12 +34,39 @@ else:
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 db = SQLAlchemy(app)
 app.permanent_session_lifetime = timedelta(hours=2)
+app.config['MAX_CONTENT_LENGTH'] = 6 * 1024 * 1024     # pieces jointes : 5 Mo max par fichier
+PJ_MAX = 5 * 1024 * 1024
 
 # ---------------------------------------------------------------- Referentiels
 STATUTS = ['A faire', 'En cours', 'Fait']
 PRIORITES = ['P1', 'P2', 'P3']
 SPRINTS_MAX = 20
 DUREE_MIN, DUREE_MAX = 1, 6
+# Natures de story : (code, libelle, prefixe du numero, couleur)
+NATURES_BASE = [
+    {'code': 'us', 'nom': 'User story', 'prefixe': 'US', 'couleur': '#2563eb'},
+    {'code': 'tech', 'nom': 'Story technique', 'prefixe': 'TECH', 'couleur': '#7c3aed'},
+    {'code': 'bug', 'nom': 'Correction de bug', 'prefixe': 'BUG', 'couleur': '#ea580c'},
+    {'code': 'dette', 'nom': 'Remboursement de dette technique', 'prefixe': 'DT', 'couleur': '#92400e'},
+    {'code': 'spike', 'nom': 'Spike', 'prefixe': 'SPK', 'couleur': '#0d9488'},
+]
+COULEURS_PERSO = ['#db2777', '#4d7c0f', '#0891b2', '#475569', '#a21caf', '#65a30d']
+# A quelles natures une story peut etre rattachee (vide = aucun rattachement ; None = toutes)
+PARENTS_AUTORISES = {'us': [], 'dette': [], 'tech': ['us'], 'bug': ['us', 'tech'], 'spike': ['us', 'tech', 'bug']}
+
+def natures(p):
+    out = [dict(n) for n in NATURES_BASE]
+    for i, nom in enumerate(lire_json(p.natures_perso_json, [])):
+        out.append({'code': 'x:' + nom, 'nom': nom, 'prefixe': 'ST', 'couleur': COULEURS_PERSO[i % len(COULEURS_PERSO)], 'perso': True})
+    return out
+
+def nature_info(p, code):
+    return next((n for n in natures(p) if n['code'] == code),
+                {'code': code, 'nom': 'Autre', 'prefixe': 'ST', 'couleur': '#64748b'})
+
+def parents_autorises(code):
+    return PARENTS_AUTORISES.get(code) if code in PARENTS_AUTORISES else None   # None = toutes natures
+
 DOR_COMMUNE_DEFAUT = [
     'Rédigée au format « En tant que… j\'ai besoin de… pour… »',
     "Critères d'acceptation définis",
@@ -77,6 +104,7 @@ def fmt(n):
     """Affiche 3 plutot que 3.0"""
     return int(n) if float(n).is_integer() else n
 app.jinja_env.filters['fmt'] = fmt
+app.jinja_env.filters['fromjson_list'] = lambda t: lire_json(t, [])
 
 # ---------------------------------------------------------------- Modele
 class User(db.Model):
@@ -99,6 +127,7 @@ class Projet(db.Model):
     dod_bloquante = db.Column(db.Boolean, default=True)    # une story ne passe en Fait que si sa DoD est complete
     dor_commune_json = db.Column(db.Text, default='[]')
     dor_bloquante = db.Column(db.Boolean, default=True)    # une story n'entre dans un sprint que si elle est prete
+    natures_perso_json = db.Column(db.Text, default='[]')  # natures de story ajoutees par le PO
 
     @property
     def dod_commune(self): return lire_json(self.dod_commune_json, [])
@@ -145,6 +174,17 @@ class Story(db.Model):
     dod_json = db.Column(db.Text, default='[]')            # DoD specifique [{label, ok}]
     dod_commune_ok_json = db.Column(db.Text, default='[]') # libelles de la DoD commune coches
     dor_ok_json = db.Column(db.Text, default='[]')         # libelles de la DoR cochés
+    dor_json = db.Column(db.Text, default='[]')            # DoR specifique [{label, ok}]
+    nature = db.Column(db.String(80), default='us')
+    parent_id = db.Column(db.Integer, db.ForeignKey('story.id'), nullable=True)
+    description = db.Column(db.Text, default='')           # natures autres que user story
+    observe = db.Column(db.Text, default='')               # bug : comportement observe
+    attendu = db.Column(db.Text, default='')               # bug : comportement attendu
+    andon = db.Column(db.Boolean, default=False)           # signal de probleme (point rouge)
+    andon_motif = db.Column(db.Text, default='')
+    parent = db.relationship('Story', remote_side='Story.id', backref='enfants')
+    pieces = db.relationship('PieceJointe', backref='story', cascade='all, delete-orphan', lazy=True,
+                             order_by='PieceJointe.id')
     ordre = db.Column(db.Integer, default=0)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     taches = db.relationship('Tache', backref='story', cascade='all, delete-orphan', lazy=True,
@@ -161,9 +201,18 @@ class Story(db.Model):
     @property
     def dor_ok(self): return lire_json(self.dor_ok_json, [])
 
+    @property
+    def dor(self): return lire_json(self.dor_json, [])
+
+    def dor_applicable(self, label):
+        # un critere qui parle du format « En tant que… » ne concerne que les user stories
+        return self.nature == 'us' or 'en tant que' not in label.lower()
+
     def dor_etat(self, dor_commune):
         ok = set(self.dor_ok)
-        return sum(1 for l in dor_commune if l in ok), len(dor_commune)
+        communs = [l for l in dor_commune if self.dor_applicable(l)]
+        fait = sum(1 for l in communs if l in ok) + sum(1 for d in self.dor if d.get('ok'))
+        return fait, len(communs) + len(self.dor)
 
     def est_prete(self, dor_commune):
         f, t = self.dor_etat(dor_commune)
@@ -177,7 +226,18 @@ class Story(db.Model):
         return fait, total
 
     def numero(self):
-        return 'US-{:03d}'.format(self.id)
+        prefixe = next((n['prefixe'] for n in NATURES_BASE if n['code'] == self.nature), 'ST')
+        return '{}-{:03d}'.format(prefixe, self.id)
+
+class PieceJointe(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    story_id = db.Column(db.Integer, db.ForeignKey('story.id'), nullable=False)
+    nom = db.Column(db.String(200), nullable=False)
+    mime = db.Column(db.String(120), default='application/octet-stream')
+    taille = db.Column(db.Integer, default=0)
+    donnees = db.Column(db.LargeBinary, nullable=False)
+    ajoute_par = db.Column(db.String(80), default='')
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class Tache(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -255,8 +315,10 @@ def est_po(): return session.get('role') == 'po'
 def contexte():
     if 'user_id' not in session: return {}
     p = get_projet()
+    nats = natures(p)
     return {'projet': p, 'est_po': est_po(), 'STATUTS': STATUTS, 'PRIORITES': PRIORITES,
-            'parcours': parcours(p)}
+            'parcours': parcours(p), 'NATURES': nats,
+            'nat': lambda code: next((n for n in nats if n['code'] == code), nature_info(p, code))}
 
 def parcours(p):
     """Fil conducteur : les 6 etapes du PO et de l'equipe, avec la prochaine action."""
@@ -271,11 +333,11 @@ def parcours(p):
         {'n': 2, 'nom': 'Features', 'ok': Feature.query.count() > 0, 'po': True,
          'action': 'Créez une feature et rattachez-la à une release.',
          'lien': url_for('backlog') + '#nouvelle-feature', 'bouton': 'Créer une feature'},
-        {'n': 3, 'nom': 'User stories', 'ok': len(stories) > 0, 'po': True,
-         'action': 'Ajoutez des user stories dans une feature (champ « Nouvelle user story » sous la feature).',
+        {'n': 3, 'nom': 'Stories', 'ok': len(stories) > 0, 'po': True,
+         'action': 'Ajoutez des stories dans une feature : choisissez leur nature (user story, story technique, bug…) et leur titre.',
          'lien': url_for('backlog') + ('#feature-{}'.format(premiere.id) if premiere else ''), 'bouton': 'Ajouter des stories'},
-        {'n': 4, 'nom': 'Estimer et rendre prêtes', 'ok': len(pretes) > 0, 'po': False,
-         'action': "Ouvrez chaque story : estimez-la en points et cochez sa Definition of Ready.",
+        {'n': 4, 'nom': 'Estimer et rendre prêtes les stories', 'ok': len(pretes) > 0, 'po': False,
+         'action': "Ouvrez chaque story : estimez-la en points, rattachez-la si besoin à une story parente et cochez sa Definition of Ready.",
          'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'), 'bouton': 'Affiner une story'},
         {'n': 5, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
          'action': 'Affectez les stories prêtes à un sprint (liste « Affecter à… »).',
@@ -454,6 +516,7 @@ def backlog():
     filtre_sprint = request.args.get('sprint', '')
     filtre_statut = request.args.get('statut', '')
     filtre_release = request.args.get('release', '')
+    filtre_nature = request.args.get('nature', '')
     if filtre_release == '0':
         features = [f for f in features if not f.release_id]
     elif filtre_release:
@@ -467,6 +530,8 @@ def backlog():
             st = [s for s in st if str(s.sprint) == filtre_sprint]
         if filtre_statut:
             st = [s for s in st if s.statut == filtre_statut]
+        if filtre_nature:
+            st = [s for s in st if s.nature == filtre_nature]
         blocs.append({'f': f, 'stories': st, 'cal': cal.get(f.release_id),
                       'points': sum(s.points or 0 for s in f.stories),
                       'fait': sum(s.points or 0 for s in f.stories if s.statut == 'Fait')})
@@ -477,7 +542,7 @@ def backlog():
              'non_planifiees': sum(1 for s in toutes if not s.sprint),
              'non_estimees': sum(1 for s in toutes if not s.points)}
     return render_template('backlog.html', blocs=blocs, stats=stats, dod_commune=p.dod_commune, dor_commune=p.dor_commune,
-                           filtre_sprint=filtre_sprint, filtre_statut=filtre_statut, filtre_release=filtre_release,
+                           filtre_sprint=filtre_sprint, filtre_statut=filtre_statut, filtre_release=filtre_release, filtre_nature=filtre_nature,
                            releases=Release.query.order_by(Release.ordre, Release.id).all(), cal_rel=cal,
                            responsables=responsables_connus())
 
@@ -540,7 +605,12 @@ def story_ajouter():
     titre = request.form.get('titre', '').strip()
     if not titre:
         return redirect(url_for('backlog'))
-    s = Story(feature_id=f.id, titre=titre[:200],
+    codes = [n['code'] for n in natures(get_projet())]
+    nature = request.form.get('nature', '')
+    if nature not in codes:
+        flash('Choisissez la nature de la story (user story, story technique, bug…).', 'error')
+        return redirect(url_for('backlog') + '#feature-{}'.format(f.id))
+    s = Story(feature_id=f.id, titre=titre[:200], nature=nature,
               priorite=request.form.get('priorite') if request.form.get('priorite') in PRIORITES else 'P2')
     db.session.add(s); db.session.commit()
     return redirect(url_for('story', sid=s.id))
@@ -562,21 +632,25 @@ def story(sid):
             if fm.get('priorite') in PRIORITES: s.priorite = fm.get('priorite')
             fid = fm.get('feature_id', type=int)
             if fid and db.session.get(Feature, fid): s.feature_id = fid
+            if fm.get('nature') in [n['code'] for n in natures(p)]: s.nature = fm.get('nature')
+            s.description = fm.get('description', '').strip()
+            s.observe = fm.get('observe', '').strip()
+            s.attendu = fm.get('attendu', '').strip()
+        # rattachement a une story parente (PO + equipe)
+        pid = fm.get('parent_id', type=int)
+        s.parent_id = pid if pid and any(c.id == pid for c in parents_possibles(s)) else None
+        # andon
+        s.andon = bool(fm.get('andon'))
+        s.andon_motif = fm.get('andon_motif', '').strip()[:300] if s.andon else ''
         s.responsable = fm.get('responsable', '').strip().upper()[:40]
         s.points = nombre(fm.get('points'))
         s.dor_ok_json = json.dumps([l for i, l in enumerate(p.dor_commune) if fm.get('dorc_{}'.format(i))])
+        s.dor_json = json.dumps(liste_criteres(fm, 'dor'))
         erreur_dor = affecter_sprint(s, borne(fm.get('sprint'), 0, p.nb_sprints, 0), p)
         # DoD commune : cases cochees
         s.dod_commune_ok_json = json.dumps([l for i, l in enumerate(p.dod_commune) if fm.get('dodc_{}'.format(i))])
         # DoD specifique : libelles + cases
-        dod = []
-        for i, label in enumerate(fm.getlist('dod_label')):
-            label = label.strip()
-            if label:
-                dod.append({'label': label[:200], 'ok': bool(fm.get('dod_ok_{}'.format(i)))})
-        nouveau = fm.get('dod_nouveau', '').strip()
-        if nouveau: dod.append({'label': nouveau[:200], 'ok': False})
-        s.dod_json = json.dumps(dod)
+        s.dod_json = json.dumps(liste_criteres(fm, 'dod'))
         erreur = changer_statut_story(s, fm.get('statut'), p)
         s.updated_at = datetime.utcnow()
         db.session.commit()
@@ -597,18 +671,91 @@ def story(sid):
     prec = ordre[i - 1] if i > 0 else None
     suiv = ordre[i + 1] if i < len(ordre) - 1 else None
     cal = next((c for c in calendrier_releases(p) if c['r'].id == s.feature.release_id), None)
+    enfants_ouverts = [e for e in s.enfants if e.statut != 'Fait']
     return render_template('story.html', s=s, dod_commune=p.dod_commune, prec=prec, suiv=suiv, cal=cal,
+                           parents=parents_possibles(s), autorises=parents_autorises(s.nature),
+                           enfants_ouverts=enfants_ouverts,
                            features=Feature.query.order_by(Feature.ordre, Feature.id).all(),
                            responsables=responsables_connus(), dod=s.dod_etat(p.dod_commune),
                            dor_commune=p.dor_commune, dor=s.dor_etat(p.dor_commune))
+
+def liste_criteres(fm, prefixe):
+    """Criteres specifiques (DoR ou DoD) saisis sur la fiche : libelles + cases + nouveau critere."""
+    out = []
+    for i, label in enumerate(fm.getlist(prefixe + '_label')):
+        label = label.strip()
+        if label:
+            out.append({'label': label[:200], 'ok': bool(fm.get('{}_ok_{}'.format(prefixe, i)))})
+    nouveau = fm.get(prefixe + '_nouveau', '').strip()
+    if nouveau: out.append({'label': nouveau[:200], 'ok': False})
+    return out
+
+def parents_possibles(s):
+    """Stories auxquelles s peut etre rattachee, selon sa nature (jamais elle-meme ni une de ses descendantes)."""
+    autorises = parents_autorises(s.nature)
+    if autorises == []:
+        return []
+    exclus, pile = {s.id}, list(s.enfants)
+    while pile:
+        e = pile.pop(); exclus.add(e.id); pile.extend(e.enfants)
+    cand = [x for x in Story.query.order_by(Story.id).all() if x.id not in exclus]
+    return [x for x in cand if autorises is None or x.nature in autorises]
 
 @app.route('/story/<int:sid>/supprimer', methods=['POST'])
 @po_requis
 def story_supprimer(sid):
     s = db.get_or_404(Story, sid)
+    for e in s.enfants: e.parent_id = None
     db.session.delete(s); db.session.commit()
     flash('Story « {} » supprimée'.format(s.titre), 'success')
     return redirect(url_for('backlog'))
+
+@app.route('/story/<int:sid>/pj', methods=['POST'])
+@connecte
+def pj_ajouter(sid):
+    s = db.get_or_404(Story, sid)
+    f = request.files.get('fichier')
+    if not f or not f.filename:
+        flash('Choisissez un fichier.', 'error')
+    else:
+        data = f.read()
+        if len(data) > PJ_MAX:
+            flash('Fichier trop volumineux (5 Mo maximum).', 'error')
+        else:
+            nom = os.path.basename(f.filename)[:200]
+            db.session.add(PieceJointe(story_id=s.id, nom=nom, mime=f.mimetype or 'application/octet-stream',
+                                       taille=len(data), donnees=data, ajoute_par=session.get('username', '')))
+            db.session.commit()
+            flash('Pièce jointe « {} » ajoutée.'.format(nom), 'success')
+    return redirect(url_for('story', sid=s.id) + '#pj')
+
+@app.route('/pj/<int:pid>')
+@connecte
+def pj_telecharger(pid):
+    pj = db.get_or_404(PieceJointe, pid)
+    inline = pj.mime.startswith('image/') or pj.mime == 'application/pdf'
+    nom = pj.nom.replace('"', '')
+    return Response(pj.donnees, mimetype=pj.mime, headers={
+        'Content-Disposition': '{}; filename="{}"'.format('inline' if inline else 'attachment', nom),
+        'X-Content-Type-Options': 'nosniff'})
+
+@app.route('/pj/<int:pid>/supprimer', methods=['POST'])
+@connecte
+def pj_supprimer(pid):
+    pj = db.get_or_404(PieceJointe, pid)
+    sid = pj.story_id
+    db.session.delete(pj); db.session.commit()
+    return redirect(url_for('story', sid=sid) + '#pj')
+
+@app.route('/api/story/<int:sid>/andon', methods=['POST'])
+@connecte
+def api_andon(sid):
+    s = db.get_or_404(Story, sid)
+    d = request.get_json(silent=True) or {}
+    s.andon = bool(d.get('andon'))
+    s.andon_motif = str(d.get('motif', '')).strip()[:300] if s.andon else ''
+    db.session.commit()
+    return jsonify({'ok': True, 'andon': s.andon, 'motif': s.andon_motif})
 
 @app.route('/story/<int:sid>/tache', methods=['POST'])
 @connecte
@@ -800,12 +947,28 @@ def parametres():
         p.dod_bloquante = bool(fm.get('dod_bloquante'))
         p.dor_commune_json = json.dumps([l.strip()[:200] for l in fm.get('dor_commune', '').splitlines() if l.strip()])
         p.dor_bloquante = bool(fm.get('dor_bloquante'))
+        bases = {n['nom'].lower() for n in NATURES_BASE}
+        perso = []
+        for l in fm.get('natures_perso', '').splitlines():
+            l = l.strip()[:60]
+            if l and l.lower() not in bases and l not in perso: perso.append(l)
+        p.natures_perso_json = json.dumps(perso)
         db.session.commit()
         flash('Paramètres enregistrés', 'success')
         return redirect(url_for('parametres'))
     return render_template('parametres.html')
 
 # ---------------------------------------------------------------- Administration
+@app.route('/parametres/defaut/<quoi>', methods=['POST'])
+@po_requis
+def criteres_defaut(quoi):
+    p = get_projet()
+    if quoi == 'dor': p.dor_commune_json = json.dumps(DOR_COMMUNE_DEFAUT)
+    elif quoi == 'dod': p.dod_commune_json = json.dumps(DOD_COMMUNE_DEFAUT)
+    db.session.commit()
+    flash('Critères {} par défaut rétablis.'.format('de DoR' if quoi == 'dor' else 'de DoD'), 'success')
+    return redirect(url_for('parametres'))
+
 @app.route('/admin/users')
 @po_requis
 def admin_users():
@@ -839,7 +1002,7 @@ def reset_all():
     if request.form.get('confirmation', '').strip().upper() != 'VIDER':
         flash('Tapez VIDER pour confirmer la réinitialisation', 'error')
         return redirect(url_for('admin_users'))
-    Tache.query.delete(); Story.query.delete(); Feature.query.delete(); Release.query.delete()
+    PieceJointe.query.delete(); Tache.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     for s in Sprint.query.all(): s.objectif = ''; s.capacite = 0; s.jour_courant = 1
     db.session.commit()
     flash('Backlog vidé : releases, features, stories et tâches supprimées', 'success')
@@ -853,7 +1016,7 @@ def charger_exemple():
     if request.form.get('confirmation', '').strip().upper() != 'EXEMPLE':
         flash("Tapez EXEMPLE pour confirmer le chargement de l'exemple", 'error')
         return redirect(url_for('admin_users'))
-    Tache.query.delete(); Story.query.delete(); Feature.query.delete(); Release.query.delete()
+    PieceJointe.query.delete(); Tache.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     p = get_projet()
     p.nom = ex.PRODUIT['nom']; p.vision = ex.PRODUIT['vision']
     p.nb_sprints = ex.PRODUIT['nb_sprints']; p.duree_semaines = ex.PRODUIT['duree_semaines']
@@ -882,6 +1045,18 @@ def charger_exemple():
             db.session.add(st); db.session.flush()
             for t, h in taches:
                 db.session.add(Tache(story_id=st.id, titre=t, heures=h))
+    db.session.flush()
+    par_titre = {x.titre: x for x in Story.query.all()}
+    par_feature = {f.nom: f for f in Feature.query.all()}
+    for k, x in enumerate(getattr(ex, 'AUTRES', [])):
+        parent = par_titre.get(x.get('parent'))
+        st = Story(feature_id=par_feature[x['feature']].id, titre=x['titre'], nature=x['nature'],
+                   priorite=x.get('priorite', 'P2'), description=x.get('description', ''),
+                   observe=x.get('observe', ''), attendu=x.get('attendu', ''), ordre=100 + k,
+                   parent_id=parent.id if parent else None, andon=bool(x.get('andon')), andon_motif=x.get('andon', ''),
+                   dor_ok_json=json.dumps(ex.dor_cochee('', 0, 0)))
+        db.session.add(st); db.session.flush()
+        par_titre[st.titre] = st
     db.session.commit()
     flash('Exemple ROBO AGRI chargé : sprint 1 prêt à démarrer, le reste du backlog est à estimer et à planifier.', 'success')
     return redirect(url_for('backlog'))

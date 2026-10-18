@@ -1,6 +1,7 @@
 {% extends 'base.html' %}
+{% set N = nat(s.nature) %}
 {% block title %}{{ s.numero() }} · {{ s.titre }}{% endblock %}
-{% block page_title %}<span class="mono muted" style="font-size:13px">{{ s.numero() }}</span> &nbsp;{{ s.titre }}{% endblock %}
+{% block page_title %}<span class="nat-badge" style="--c:{{ N.couleur }}">{{ N.nom }}</span> <span class="mono muted" style="font-size:13px">{{ s.numero() }}</span> &nbsp;{{ s.titre }}{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% endblock %}
 {% block topbar_actions %}
   <a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">&#8592; Backlog</a>
   {% if prec %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=prec) }}" title="Story précédente">&#8249;</a>{% endif %}
@@ -15,12 +16,15 @@
 .dod-list{list-style:none;display:flex;flex-direction:column;gap:6px}
 .dod-list li{display:flex;align-items:center;gap:10px;padding:7px 10px;border-radius:var(--radius-sm);background:var(--gray-50);border:1px solid var(--gray-100)}
 .dod-list li.ok{background:var(--green-light);border-color:#bbf7d0}
+.dod-list li.na{opacity:.55}
+.dod-list li.na .lab{text-decoration:line-through}
 .dod-list input[type=checkbox]{width:17px;height:17px;accent-color:var(--green);flex:none}
 .dod-list input[type=text]{border:none;background:transparent;padding:2px 4px}
 .dod-list .lab{font-size:13px}
 .dod-sub{font-size:10px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.8px;margin:14px 0 6px}
-.dod-sub:first-of-type{margin-top:0}
 .aide{font-size:12px;color:var(--gray-500);margin:-8px 0 12px}
+.regle{font-size:12px;color:#1e3a8a;background:var(--blue-ll);border:1px solid #bfdbfe;border-radius:8px;padding:8px 10px;margin-bottom:12px;line-height:1.45}
+.regle a{color:#1e3a8a;font-weight:700}
 .dod-list li.ok.dor{background:var(--blue-ll);border-color:#bfdbfe}
 .dor input[type=checkbox]{accent-color:var(--blue)}
 .pret{display:inline-block;margin-top:6px;font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px}
@@ -28,38 +32,85 @@
 .dod-score{font-family:'DM Mono',monospace;font-weight:700}
 .side .field{margin-bottom:12px}
 .taches td input,.taches td select{padding:6px 8px;font-size:12px}
-.taches .h{width:80px}
-.taches .r{width:90px}
-.taches .st{width:110px}
+.taches .h{width:80px}.taches .r{width:90px}.taches .st{width:110px}
 .taches tfoot td{font-weight:700;background:var(--gray-50)}
-.ro-note{font-size:11px;color:var(--gray-500);margin-top:-6px;margin-bottom:12px}
+.grp[hidden]{display:none}
+.enfants{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:10px}
+.enfants li{display:flex;align-items:center;gap:8px;font-size:13px;flex-wrap:wrap}
+.enfants a{color:var(--navy);font-weight:600;text-decoration:none}
+.andon-card.on{border-color:#fca5a5;background:#fff7f7}
+.andon-card label.chk{display:flex;gap:10px;align-items:center;font-weight:700;font-size:13px;cursor:pointer;color:var(--gray-900)}
+.andon-card input[type=checkbox]{width:18px;height:18px;accent-color:var(--red)}
+.pj-list{list-style:none;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
+.pj-list li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px}
+.pj-list a{color:var(--navy);font-weight:600;text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pj-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
 @media(max-width:900px){.fiche{grid-template-columns:1fr}}
 </style>
 {% endblock %}
-{% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. Le titre, la description, les critères d'acceptation et la priorité sont rédigés par le Product Owner. Vous pouvez modifier le statut, le responsable, l'estimation, le sprint, la DoD et les tâches. Pour modifier, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
+{% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. La nature, le titre, la description, les critères d'acceptation et la priorité sont rédigés par le Product Owner. Vous pouvez modifier le statut, le responsable, l'estimation, le sprint, le rattachement, l'andon, la DoR, la DoD, les tâches et les pièces jointes. Pour modifier le reste, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
 {% block content %}
 <datalist id="resp">{% for r in responsables %}<option value="{{ r }}">{% endfor %}</datalist>
 
 {% if cal and s.sprint and not (cal.s1 <= s.sprint <= cal.s2) %}
 <div class="alert alert-error">Cette story est planifiée au sprint {{ s.sprint }}, en dehors de sa release <b>{{ cal.r.nom }}</b> (sprints {{ cal.s1 }} à {{ cal.s2 }}, fin le {{ cal.fin.strftime('%d/%m/%Y') if cal.fin else '—' }}).</div>
 {% endif %}
+{% if s.statut == 'Fait' and enfants_ouverts %}
+<div class="alert alert-error">Cette story est « Fait » alors que {{ enfants_ouverts|length }} story(s) rattachée(s) ne le sont pas encore : {% for e in enfants_ouverts %}<a href="{{ url_for('story', sid=e.id) }}">{{ e.numero() }}</a>{{ ', ' if not loop.last }}{% endfor %}.</div>
+{% endif %}
+
 <form id="fiche" method="post" class="fiche">
   <div>
     <div class="card">
-      <div class="card-title">User story</div>
+      <div class="card-title">Story</div>
       <div class="grid2">
-        <div class="field"><label>Titre</label><input type="text" name="titre" value="{{ s.titre }}" {% if not est_po %}disabled{% endif %} required></div>
+        <div class="field"><label>Nature</label>
+          <select name="nature" id="nature" {% if not est_po %}disabled{% endif %}>
+            {% for n in NATURES %}<option value="{{ n.code }}" {% if n.code==s.nature %}selected{% endif %}>{{ n.nom }}</option>{% endfor %}
+          </select></div>
         <div class="field"><label>Feature</label>
           <select name="feature_id" {% if not est_po %}disabled{% endif %}>
             {% for f in features %}<option value="{{ f.id }}" {% if f.id==s.feature_id %}selected{% endif %}>{{ f.nom }}</option>{% endfor %}
           </select></div>
       </div>
-      <div class="us-format">
+      <div class="field"><label>Titre</label><input type="text" name="titre" value="{{ s.titre }}" {% if not est_po %}disabled{% endif %} required></div>
+
+      <div class="grp us-format" data-nat="us">
         <div class="field"><label>En tant que…</label><textarea name="en_tant_que" placeholder="ex : viticulteur responsable de parcelle" {% if not est_po %}disabled{% endif %}>{{ s.en_tant_que }}</textarea></div>
         <div class="field"><label>J'ai besoin de…</label><textarea name="besoin" placeholder="ex : visualiser l'avancement de la récolte parcelle par parcelle" {% if not est_po %}disabled{% endif %}>{{ s.besoin }}</textarea></div>
         <div class="field"><label>Pour…</label><textarea name="pour" placeholder="ex : réaffecter les robots vers les parcelles en retard" {% if not est_po %}disabled{% endif %}>{{ s.pour }}</textarea></div>
       </div>
+      <div class="grp" data-nat="bug">
+        <div class="field"><label>Comportement observé</label><textarea name="observe" rows="3" placeholder="ex : le robot s'arrête au bout du rang 12 et ne repart pas" {% if not est_po %}disabled{% endif %}>{{ s.observe }}</textarea></div>
+        <div class="field"><label>Comportement attendu</label><textarea name="attendu" rows="3" placeholder="ex : le robot fait demi-tour et attaque le rang 13" {% if not est_po %}disabled{% endif %}>{{ s.attendu }}</textarea></div>
+      </div>
+      <div class="grp" data-nat="autre">
+        <div class="field"><label>Description</label><textarea name="description" rows="4" placeholder="Ce qu'il faut faire et pourquoi" {% if not est_po %}disabled{% endif %}>{{ s.description }}</textarea></div>
+      </div>
       <div class="field" style="margin-bottom:0"><label>Critères d'acceptation</label><textarea name="criteres" rows="4" placeholder="Étant donné… quand… alors…" {% if not est_po %}disabled{% endif %}>{{ s.criteres }}</textarea></div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Rattachement</div>
+      {% if autorises == [] %}
+        <p class="muted small">Une story de nature « {{ N.nom }} » ne se rattache à aucune autre story.</p>
+      {% else %}
+        <p class="aide" style="margin-top:-6px">Facultatif. {% if s.nature=='tech' %}Une story technique sert généralement une user story.{% elif s.nature=='bug' %}Une correction de bug se rattache à une user story ou à une story technique.{% elif s.nature=='spike' %}Un spike (spécification technique ou détaillée) se rattache à une user story, une story technique ou une correction de bug.{% else %}Cette story peut être rattachée à n'importe quelle autre story.{% endif %}</p>
+        <div class="field" style="margin-bottom:0"><label>Story parente</label>
+          <select name="parent_id">
+            <option value="">— Aucune —</option>
+            {% for x in parents %}<option value="{{ x.id }}" {% if x.id==s.parent_id %}selected{% endif %}>{{ x.numero() }} · {{ x.titre }} ({{ nat(x.nature).nom }})</option>{% endfor %}
+          </select></div>
+        {% if not parents %}<p class="muted small" style="margin-top:6px">Aucune story compatible pour l'instant.</p>{% endif %}
+      {% endif %}
+      {% if s.enfants %}
+      <div class="dod-sub">Stories rattachées à celle-ci</div>
+      <ul class="enfants">
+        {% for e in s.enfants %}{% set NE = nat(e.nature) %}
+        <li><span class="nat-badge" style="--c:{{ NE.couleur }}">{{ NE.nom }}</span><a href="{{ url_for('story', sid=e.id) }}">{{ e.numero() }} · {{ e.titre }}</a><span class="badge st-{{ e.statut|replace(' ','-') }}">{{ e.statut }}</span>{% if e.andon %}<span class="andon" title="{{ e.andon_motif }}"></span>{% endif %}</li>
+        {% endfor %}
+      </ul>
+      {% endif %}
     </div>
 
     <div class="card">
@@ -67,14 +118,23 @@
         <span>Definition of Ready</span>
         <span class="dod-score" style="color:{{ 'var(--blue)' if dor[1] and dor[0]==dor[1] else 'var(--gray-500)' }}">{{ dor[0] }} / {{ dor[1] }}</span>
       </div>
-      <p class="aide">Avant le sprint : les conditions pour que la story puisse entrer dans un sprint.{% if projet.dor_bloquante %} Tant qu'elle n'est pas prête, elle ne peut pas être planifiée.{% endif %}</p>
+      <p class="aide">Avant le sprint : les conditions pour que la story puisse entrer dans un sprint.</p>
+      <p class="regle">Chaque critère listé s'applique à cette story : <b>case cochée = critère atteint</b>, case vide = non atteint{% if projet.dor_bloquante %} (la story ne pourra pas entrer en sprint){% endif %}. Les critères communs se réécrivent dans {% if est_po %}<a href="{{ url_for('parametres') }}#dor">Produit, DoR &amp; DoD</a>{% else %}Produit, DoR &amp; DoD (PO){% endif %} ; les critères propres à cette story s'ajoutent ci-dessous.</p>
+      <div class="dod-sub">DoR commune</div>
       {% if dor_commune %}
       <ul class="dod-list">
-        {% for l in dor_commune %}
-        <li class="dor {% if l in s.dor_ok %}ok{% endif %}"><input type="checkbox" name="dorc_{{ loop.index0 }}" id="dr{{ loop.index0 }}" {% if l in s.dor_ok %}checked{% endif %}><label class="lab" for="dr{{ loop.index0 }}">{{ l }}</label></li>
+        {% for l in dor_commune %}{% set app = s.dor_applicable(l) %}
+        <li class="dor {% if not app %}na{% elif l in s.dor_ok %}ok{% endif %}" {% if not app %}title="Ne s'applique qu'aux user stories"{% endif %}><input type="checkbox" name="dorc_{{ loop.index0 }}" id="dr{{ loop.index0 }}" {% if l in s.dor_ok %}checked{% endif %} {% if not app %}disabled{% endif %}><label class="lab" for="dr{{ loop.index0 }}">{{ l }}</label>{% if not app %}<span class="small muted">user story uniquement</span>{% endif %}</li>
         {% endfor %}
       </ul>
-      {% else %}<p class="muted small">Aucune DoR définie{% if est_po %} — <a href="{{ url_for('parametres') }}">la définir</a>{% endif %}.</p>{% endif %}
+      {% else %}<p class="muted small">Aucune DoR commune.</p>{% endif %}
+      <div class="dod-sub">DoR spécifique à cette story</div>
+      <ul class="dod-list">
+        {% for d in s.dor %}
+        <li class="dor {% if d.ok %}ok{% endif %}"><input type="checkbox" name="dor_ok_{{ loop.index0 }}" {% if d.ok %}checked{% endif %}><input type="text" name="dor_label" value="{{ d.label }}" title="Videz le libellé pour supprimer le critère"></li>
+        {% endfor %}
+        <li><span style="width:17px;text-align:center;color:var(--gray-500)">+</span><input type="text" name="dor_nouveau" placeholder="Ajouter un critère spécifique (ex : maquette validée par le métier)"></li>
+      </ul>
     </div>
 
     <div class="card">
@@ -83,15 +143,15 @@
         <span class="dod-score" style="color:{{ 'var(--green)' if dod[1] and dod[0]==dod[1] else 'var(--gray-500)' }}">{{ dod[0] }} / {{ dod[1] }}</span>
       </div>
       <p class="aide">Après le travail : les conditions pour déclarer la story « Fait ».</p>
-      <div class="dod-sub">DoD commune à l'équipe</div>
+      <p class="regle">Chaque critère listé s'applique à cette story : <b>case cochée = critère atteint</b>, case vide = non atteint{% if projet.dod_bloquante %} (la story ne pourra pas passer en « Fait »){% endif %}. Les critères communs se réécrivent dans {% if est_po %}<a href="{{ url_for('parametres') }}#dod">Produit, DoR &amp; DoD</a>{% else %}Produit, DoR &amp; DoD (PO){% endif %} ; les critères propres à cette story s'ajoutent ci-dessous.</p>
+      <div class="dod-sub">DoD commune</div>
       {% if dod_commune %}
       <ul class="dod-list">
         {% for l in dod_commune %}
         <li class="{% if l in s.dod_commune_ok %}ok{% endif %}"><input type="checkbox" name="dodc_{{ loop.index0 }}" id="dc{{ loop.index0 }}" {% if l in s.dod_commune_ok %}checked{% endif %}><label class="lab" for="dc{{ loop.index0 }}">{{ l }}</label></li>
         {% endfor %}
       </ul>
-      {% else %}<p class="muted small">Aucune DoD commune définie{% if est_po %} — <a href="{{ url_for('parametres') }}">la définir</a>{% endif %}.</p>{% endif %}
-
+      {% else %}<p class="muted small">Aucune DoD commune.</p>{% endif %}
       <div class="dod-sub">DoD spécifique à cette story</div>
       <ul class="dod-list">
         {% for d in s.dod %}
@@ -103,6 +163,11 @@
   </div>
 
   <div class="side">
+    <div class="card andon-card {{ 'on' if s.andon }}" id="andon-card">
+      <label class="chk"><input type="checkbox" name="andon" id="andon" {% if s.andon %}checked{% endif %}><span class="andon"></span> Andon : signaler un problème</label>
+      <div class="field" id="andon-motif" style="margin:10px 0 0" {% if not s.andon %}hidden{% endif %}><label>Motif</label>
+        <input type="text" name="andon_motif" value="{{ s.andon_motif }}" maxlength="300" placeholder="ex : bloqué par l'accès au simulateur"></div>
+    </div>
     <div class="card">
       <div class="card-title">Pilotage</div>
       <div class="field"><label>Statut</label>
@@ -130,7 +195,7 @@
   </div>
 </form>
 {% if est_po %}
-<form id="suppr" method="post" action="{{ url_for('story_supprimer', sid=s.id) }}" onsubmit="return confirm('Supprimer définitivement cette story et ses tâches ?')"></form>
+<form id="suppr" method="post" action="{{ url_for('story_supprimer', sid=s.id) }}" onsubmit="return confirm('Supprimer définitivement cette story, ses tâches et ses pièces jointes ?')"></form>
 {% endif %}
 
 <div class="card taches" id="taches">
@@ -163,11 +228,37 @@
   {% for t in s.taches %}<form id="ft{{ t.id }}" method="post" action="{{ url_for('tache_modifier', tid=t.id) }}"></form>{% endfor %}
   <form id="ft-new" method="post" action="{{ url_for('tache_ajouter', sid=s.id) }}"></form>
 </div>
+
+<div class="card" id="pj">
+  <div class="card-title">Pièces jointes</div>
+  <p class="aide">Maquette, capture d'écran, spécification… 5 Mo maximum par fichier. Comme le reste des données, elles ne sont conservées que pendant la séance.</p>
+  {% if s.pieces %}
+  <ul class="pj-list">
+    {% for f in s.pieces %}
+    <li>&#128206; <a href="{{ url_for('pj_telecharger', pid=f.id) }}" target="_blank" rel="noopener">{{ f.nom }}</a>
+      <span class="small muted">{{ ((f.taille/1024)|round(0)|int ~ " Ko") if f.taille >= 1024 else "< 1 Ko" }} · {{ f.ajoute_par }}</span>
+      <form method="post" action="{{ url_for('pj_supprimer', pid=f.id) }}" onsubmit="return confirm('Supprimer cette pièce jointe ?')"><button class="btn-link" title="Supprimer">&#10005;</button></form></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+  <form class="pj-form" method="post" action="{{ url_for('pj_ajouter', sid=s.id) }}" enctype="multipart/form-data">
+    <input type="file" name="fichier" required>
+    <button class="btn btn-ghost btn-sm">+ Ajouter</button>
+  </form>
+</div>
 {% endblock %}
 {% block scripts %}
 <script>
 document.querySelectorAll('.dod-list input[type=checkbox]').forEach(function(c){
   c.addEventListener('change',function(){ c.closest('li').classList.toggle('ok', c.checked); });
 });
+// Champs de description selon la nature
+(function(){ var sel=document.getElementById('nature');
+  function maj(){ var v=sel.value, k=(v==='us'||v==='bug')?v:'autre';
+    document.querySelectorAll('.grp').forEach(function(g){ g.hidden = g.dataset.nat!==k; }); }
+  sel.addEventListener('change',maj); maj(); })();
+// Andon
+(function(){ var c=document.getElementById('andon'), m=document.getElementById('andon-motif'), card=document.getElementById('andon-card');
+  c.addEventListener('change',function(){ m.hidden=!c.checked; card.classList.toggle('on',c.checked); if(c.checked) m.querySelector('input').focus(); }); })();
 </script>
 {% endblock %}

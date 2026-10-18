@@ -14,17 +14,27 @@
   <p class="small">La durée des sprints, leur nombre, la date de début et les releases se règlent dans <a href="{{ url_for('sprints') }}">Planification · releases &amp; sprints</a>.</p>
 </div>
 <div class="card">
+  <div class="card-title">Natures de story</div>
+  <p class="small" style="margin-bottom:10px">Natures proposées : {% for n in NATURES if not n.perso %}<span class="nat-badge" style="--c:{{ n.couleur }}">{{ n.nom }}</span> {% endfor %}</p>
+  <div class="field" style="margin-bottom:6px"><label>Vos natures personnalisées (une par ligne)</label>
+    <textarea name="natures_perso" rows="3" placeholder="ex : Story d'exploitation&#10;Story de conformité">{{ projet.natures_perso_json|fromjson_list|join('\n') }}</textarea></div>
+  <p class="muted small">Elles apparaissent à la création des stories et peuvent être rattachées à n'importe quelle autre story.</p>
+</div>
+<div class="card" id="dor">
   <div class="card-title">Definition of Ready (avant le sprint)</div>
+  <p class="small" style="margin-bottom:10px">Ces critères communs sont <b>modifiables</b> : réécrivez une ligne, supprimez-la ou ajoutez-en une. Les critères par défaut reviennent à chaque nouvelle session (redémarrage de l'appli) ou avec le bouton « Rétablir les critères par défaut ». Un critère contenant « En tant que » ne s'applique qu'aux user stories.</p>
   <div class="field" style="margin-bottom:6px"><label>Un critère par ligne</label>
     <textarea name="dor_commune" rows="6">{{ projet.dor_commune|join('\n') }}</textarea></div>
   <label style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 14px;font-size:13px;cursor:pointer">
     <input type="checkbox" name="dor_bloquante" {% if projet.dor_bloquante %}checked{% endif %} style="width:18px;height:18px;margin-top:1px;accent-color:var(--blue)">
     <span><b>DoR bloquante</b> — une story ne peut être affectée à un sprint que si tous ses critères de DoR sont cochés.
     <span class="muted">Les stories déjà planifiées restent en place.</span></span></label>
-  <p class="muted small">Ces critères apparaissent sur chaque fiche story. Le PO et l'équipe les cochent ensemble, en affinage du backlog.</p>
+  <p class="muted small">Ces critères apparaissent sur chaque fiche story ; chaque story peut aussi avoir ses critères spécifiques. Case cochée = critère atteint.</p>
+  <button type="submit" form="def-dor" class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="return confirm('Remplacer la DoR commune par les critères par défaut ?')">Rétablir les critères par défaut</button>
 </div>
-<div class="card">
+<div class="card" id="dod">
   <div class="card-title">Définition du Fini (après le travail)</div>
+  <p class="small" style="margin-bottom:10px">Ces critères communs sont <b>modifiables</b> : réécrivez une ligne, supprimez-la ou ajoutez-en une. Les critères par défaut reviennent à chaque nouvelle session ou avec le bouton ci-dessous.</p>
   <div class="field" style="margin-bottom:6px"><label>Un critère par ligne</label>
     <textarea name="dod_commune" rows="7">{{ projet.dod_commune|join('\n') }}</textarea></div>
   <label style="display:flex;gap:10px;align-items:flex-start;margin:6px 0 14px;font-size:13px;cursor:pointer">
@@ -32,6 +42,9 @@
     <span><b>DoD bloquante</b> — une story ne peut passer en « Fait » que si tous ses critères (communs et spécifiques) sont cochés.
     <span class="muted">Décochez pour simplement afficher un avertissement.</span></span></label>
   <p class="muted small">Ces critères apparaissent sur chaque fiche story, en plus des critères spécifiques. Renommer un critère décoche ce critère sur les stories déjà cochées.</p>
+  <button type="submit" form="def-dod" class="btn btn-ghost btn-sm" style="margin-top:10px" onclick="return confirm('Remplacer la DoD commune par les critères par défaut ?')">Rétablir les critères par défaut</button>
 </div>
 </form>
+<form id="def-dor" method="post" action="{{ url_for('criteres_defaut', quoi='dor') }}"></form>
+<form id="def-dod" method="post" action="{{ url_for('criteres_defaut', quoi='dod') }}"></form>
 {% endblock %}

@@ -161,6 +161,7 @@ tr.courant td{background:var(--blue-ll)}
   {% for s in non_planifiees %}
   <form class="np-row" method="post" action="{{ url_for('story_sprint', sid=s.id) }}">
     <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
+    <span class="nat-badge" style="--c:{{ nat(s.nature).couleur }}">{{ nat(s.nature).nom }}</span>
     <div class="t"><a href="{{ url_for('story', sid=s.id) }}" style="font-weight:600;color:var(--navy);text-decoration:none">{{ s.titre }}</a>
       <div class="small muted">{{ s.numero() }} · {{ s.feature.nom }}{% if s.feature.release %} · {{ s.feature.release.nom }}{% endif %}</div></div>
     <span class="mono small">{{ s.points|fmt if s.points else '?' }} pts</span>

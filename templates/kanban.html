@@ -21,7 +21,13 @@
 .col-title{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:1px;color:var(--gray-700)}
 .col-sum{font-size:11px;color:var(--gray-500);font-family:'DM Mono',monospace}
 .kcard{background:white;border-radius:10px;padding:11px 12px;margin-bottom:10px;box-shadow:0 1px 2px rgba(0,0,0,.06);border:1px solid var(--gray-200);border-left:4px solid var(--gray-300);cursor:grab}
-.kcard.P1{border-left-color:var(--red)}.kcard.P2{border-left-color:var(--amber)}.kcard.P3{border-left-color:var(--blue)}
+.kcard{border-left-color:var(--c,var(--gray-300))}
+.kcard.andon-on{box-shadow:0 0 0 2px rgba(220,38,38,.35),0 1px 2px rgba(0,0,0,.06)}
+.ktop{display:flex;justify-content:space-between;align-items:center;gap:6px}
+.btn-andon{border:none;background:none;cursor:pointer;padding:2px;display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--gray-500)}
+.btn-andon .off{display:inline-block;width:10px;height:10px;border-radius:50%;border:1.5px solid var(--gray-300)}
+.btn-andon:hover .off{border-color:var(--red)}
+.motif{font-size:11px;color:var(--red);margin:-4px 0 6px}
 .kcard.dragging{opacity:.4}
 .kcard a.t{display:block;font-size:13px;font-weight:700;color:var(--navy);text-decoration:none;margin:3px 0 8px;line-height:1.3}
 .kcard a.t:hover{color:var(--blue)}
@@ -87,9 +93,12 @@
   <div class="col" data-statut="{{ st }}">
     <div class="col-head"><span class="col-title">{{ st }}</span><span class="col-sum"><span class="n">{{ colonnes[st]|length }}</span> · <span class="p">{{ colonnes[st]|sum(attribute='points')|fmt }}</span> pts</span></div>
     {% for s in colonnes[st] %}{% set d = s.dod_etat(dod_commune) %}
-    <div class="kcard {{ s.priorite }}" draggable="true" data-id="{{ s.id }}" data-pts="{{ s.points or 0 }}" data-dod="{{ d[0] }}/{{ d[1] }}" data-dodok="{{ 1 if d[0]==d[1] else 0 }}">
-      <div class="kmeta"><span class="mono">{{ s.numero() }}</span> · {{ s.feature.nom }}</div>
+    {% set NS = nat(s.nature) %}<div class="kcard {{ 'andon-on' if s.andon }}" style="--c:{{ NS.couleur }}" draggable="true" data-id="{{ s.id }}" data-pts="{{ s.points or 0 }}" data-dod="{{ d[0] }}/{{ d[1] }}" data-dodok="{{ 1 if d[0]==d[1] else 0 }}" data-andon="{{ 1 if s.andon else 0 }}">
+      <div class="ktop"><span class="nat-badge" style="--c:{{ NS.couleur }}">{{ NS.nom }}</span>
+        <button type="button" class="btn-andon" title="{{ ('Andon : ' ~ s.andon_motif) if s.andon else 'Signaler un problème (andon)' }}">{% if s.andon %}<span class="andon"></span>{% else %}<span class="off"></span>{% endif %}</button></div>
+      <div class="kmeta" style="margin-top:4px"><span class="mono">{{ s.numero() }}</span> · {{ s.feature.nom }}{% if s.parent %} · &#8627; {{ s.parent.numero() }}{% endif %}</div>
       <a class="t" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>
+      {% if s.andon and s.andon_motif %}<div class="motif">&#9888; {{ s.andon_motif }}</div>{% endif %}
       <div class="kmeta">
         <span class="pts">{{ s.points|fmt if s.points else '?' }} pts</span>
         <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
@@ -210,6 +219,16 @@ function deplacer(card, statut){
     .finally(function(){ enCours = false; });
 }
 
+document.querySelectorAll('.kcard .btn-andon').forEach(function(b){
+  b.addEventListener('click', function(){
+    var k = b.closest('.kcard'), on = k.dataset.andon === '1', motif = '';
+    if (!on) { motif = prompt('Andon : quel est le problème sur cette story ?', ''); if (motif === null) return; }
+    else if (!confirm('Lever l\'andon (problème résolu) ?')) return;
+    fetch('/api/story/' + k.dataset.id + '/andon', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({andon: !on, motif: motif})})
+      .then(function(r){ if(!r.ok) throw r; location.reload(); })
+      .catch(function(){ alert('Enregistrement impossible.'); });
+  });
+});
 document.querySelectorAll('.kcard').forEach(function(k){
   k.addEventListener('dragstart', function(e){ drag = k; k.classList.add('dragging'); e.dataTransfer.effectAllowed='move'; });
   k.addEventListener('dragend', function(){ k.classList.remove('dragging'); drag = null; });

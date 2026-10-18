@@ -122,3 +122,21 @@ FEATURES = [
          'remplacer les pièces avant la casse en pleine saison', '', 'P3', 0, 0, [], []),
     ]},
 ]
+
+# Stories d'autres natures, rattachees aux user stories ci-dessus (par leur titre)
+AUTRES = [
+    {'feature': 'Récolte autonome', 'nature': 'tech', 'titre': "Exposer l'API de commande du robot",
+     'parent': 'Lancer une récolte à distance', 'priorite': 'P1',
+     'description': "Service qui reçoit les ordres de la tablette (démarrer, arrêter, changer de rang) et les transmet au robot."},
+    {'feature': 'Récolte autonome', 'nature': 'spike', 'titre': 'Choisir le protocole radio robot-tablette',
+     'parent': "Exposer l'API de commande du robot", 'priorite': 'P1',
+     'description': 'Comparer LoRa, 4G et Wi-Fi maillé en portée, latence et coût ; recommandation sous 2 jours.'},
+    {'feature': 'Récolte autonome', 'nature': 'bug', 'titre': 'Le robot ne repart pas en bout de rang',
+     'parent': 'Lancer une récolte à distance', 'priorite': 'P1',
+     'observe': "En bout de rang, le robot s'arrête et attend sans faire demi-tour.",
+     'attendu': 'Le robot fait demi-tour et attaque le rang suivant sélectionné.',
+     'andon': "Reproduit sur le simulateur, cause encore inconnue"},
+    {'feature': 'Cartographie des parcelles', 'nature': 'dette', 'titre': 'Remplacer la bibliothèque de cartographie obsolète',
+     'parent': None, 'priorite': 'P3',
+     'description': "La bibliothèque actuelle n'est plus maintenue et ralentit l'affichage des grandes parcelles."},
+]
