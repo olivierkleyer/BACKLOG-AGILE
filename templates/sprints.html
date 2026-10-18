@@ -66,9 +66,10 @@ tr.courant td{background:var(--blue-ll)}
 {# ------------------------------------------------ Releases #}
 <div class="card" id="releases">
   <div class="card-title">Releases · chaque release enchaîne un nombre de sprints</div>
+  {% if est_po %}<p class="calc-note" style="margin-top:-6px">Le calendrier s'allonge automatiquement si les releases demandent plus de sprints (max {{ SPRINTS_MAX }}).</p>{% endif %}
 
   {% if sprints_releases > projet.nb_sprints %}
-  <div class="warn">Les releases couvrent <b>{{ sprints_releases }}</b> sprints mais le calendrier n'en compte que <b>{{ projet.nb_sprints }}</b>. Augmentez le nombre de sprints ou réduisez une release.</div>
+  <div class="warn">Les releases couvrent <b>{{ sprints_releases }}</b> sprints mais le calendrier n'en compte que <b>{{ projet.nb_sprints }}</b>. Augmentez le <b>nombre de sprints</b> dans le bloc <a href="#">Calendrier des sprints</a> en haut de cette page, ou réduisez une release.</div>
   {% endif %}
 
   {% if cal %}

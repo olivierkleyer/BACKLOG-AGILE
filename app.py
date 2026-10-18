@@ -324,6 +324,26 @@ def calendrier_releases(p):
                     'pct': round(100 * fait / pts) if pts else 0})
     return out
 
+def sprints_des_releases():
+    return sum(r.nb_sprints or 0 for r in Release.query.all())
+
+def caler_calendrier(p):
+    """Le calendrier couvre toujours toutes les releases : il s'allonge si besoin.
+    Renvoie un message d'erreur si les releases depassent le maximum (rien n'est alors enregistre)."""
+    total = sprints_des_releases()
+    if total > SPRINTS_MAX:
+        db.session.rollback()
+        return 'Les releases demanderaient {} sprints : le maximum est {}. Modification annulée.'.format(total, SPRINTS_MAX)
+    if total > p.nb_sprints:
+        p.nb_sprints = total
+        db.session.commit()
+        synchroniser_sprints(total)
+        _, fin = dates_sprint(p, total)
+        flash('Le calendrier passe à {} sprints pour couvrir les releases{}.'.format(
+            total, ' (fin le {})'.format(fin.strftime('%d/%m/%Y')) if fin else ''), 'success')
+    db.session.commit()
+    return None
+
 def release_du_sprint(cal, n):
     return next((c for c in cal if c['s1'] <= n <= c['s2']), None)
 
@@ -641,6 +661,11 @@ def sprints():
         fm = request.form
         if fm.get('section') == 'calendrier':
             nb = borne(fm.get('nb_sprints'), 1, SPRINTS_MAX, p.nb_sprints)
+            mini = sprints_des_releases()
+            if nb < mini:
+                flash('Le calendrier ne peut pas descendre sous {} sprints : les releases en couvrent {}. '
+                      'Réduisez d\'abord une release (bloc Releases ci-dessous).'.format(mini, mini), 'error')
+                nb = mini
             orphelines = Story.query.filter(Story.sprint > nb).count()
             if orphelines:
                 Story.query.filter(Story.sprint > nb).update({'sprint': 0})
@@ -659,8 +684,8 @@ def sprints():
                 if nom: r.nom = nom[:80]
                 r.nb_sprints = borne(fm.get('rel_nb_{}'.format(r.id)), 1, SPRINTS_MAX, r.nb_sprints)
                 r.objectif = fm.get('rel_obj_{}'.format(r.id), '').strip()
-            db.session.commit()
-            flash('Releases enregistrées', 'success')
+            erreur = caler_calendrier(p)
+            flash(erreur or 'Releases enregistrées', 'error' if erreur else 'success')
             return redirect(url_for('sprints') + '#releases')
         for s in Sprint.query.filter(Sprint.numero <= p.nb_sprints).all():
             s.objectif = fm.get('objectif_{}'.format(s.numero), '').strip()
@@ -689,7 +714,8 @@ def release_ajouter():
         ordre = (db.session.query(db.func.max(Release.ordre)).scalar() or 0) + 1
         db.session.add(Release(nom=nom[:80], nb_sprints=borne(request.form.get('nb_sprints'), 1, SPRINTS_MAX, 1),
                                objectif=request.form.get('objectif', '').strip(), ordre=ordre))
-        db.session.commit()
+        erreur = caler_calendrier(get_projet())
+        if erreur: flash(erreur, 'error')
     return redirect(url_for('sprints') + '#releases')
 
 @app.route('/release/<int:rid>/deplacer/<sens>', methods=['POST'])
