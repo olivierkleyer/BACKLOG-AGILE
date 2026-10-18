@@ -3,6 +3,16 @@
 {% block page_title %}Utilisateurs{% endblock %}
 {% block content %}
 <div class="card">
+  <div class="card-title">Prénoms des participants</div>
+  <p class="small muted" style="margin-bottom:12px">Facultatif : le prénom remplace l'identifiant sur les cartes, le backlog et le RACI (ex : dev1 → Léa).</p>
+  <form method="post" action="{{ url_for('admin_prenoms') }}">
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px">
+    {% for u in users %}<div class="field" style="margin:0"><label>{{ u.username }}</label><input type="text" name="prenom_{{ u.id }}" value="{{ u.prenom or '' }}" maxlength="40" placeholder="Prénom"></div>{% endfor %}
+    </div>
+    <button class="btn btn-primary btn-sm" style="margin-top:12px">Enregistrer les prénoms</button>
+  </form>
+</div>
+<div class="card">
   <div class="card-title">Comptes</div>
   <table class="data-table">
     <thead><tr><th>Identifiant</th><th>Rôle</th><th>Nouveau mot de passe</th></tr></thead>

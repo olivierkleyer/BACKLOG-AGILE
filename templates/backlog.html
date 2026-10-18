@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_porteurs.html' import porteurs with context %}
 {% block title %}Product backlog{% endblock %}
 {% block page_title %}Product backlog{% endblock %}
 {% block extra_css %}
@@ -55,6 +56,11 @@ td.us-id{border-left:4px solid var(--c,transparent)}
       <option value="">Toutes</option>
       {% for n in NATURES %}<option value="{{ n.code }}" {% if filtre_nature==n.code %}selected{% endif %}>{{ n.nom }}</option>{% endfor %}
     </select></div>
+  <div class="field"><label>Développeur</label>
+    <select name="dev" onchange="this.form.submit()">
+      <option value="">Tous</option>
+      {% for x in PERSONNES %}<option value="{{ x.id }}" {% if filtre_dev==x.id %}selected{% endif %}>{{ x.label }}</option>{% endfor %}
+    </select></div>
   <div class="field"><label>Sprint</label>
     <select name="sprint" onchange="this.form.submit()">
       <option value="">Tous</option>
@@ -66,7 +72,7 @@ td.us-id{border-left:4px solid var(--c,transparent)}
       <option value="">Tous</option>
       {% for st in STATUTS %}<option {% if filtre_statut==st %}selected{% endif %}>{{ st }}</option>{% endfor %}
     </select></div>
-  {% if filtre_sprint or filtre_statut or filtre_release or filtre_nature %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
+  {% if filtre_sprint or filtre_statut or filtre_release or filtre_nature or filtre_dev %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
 </form>
 
 {% if not blocs %}
@@ -105,13 +111,13 @@ td.us-id{border-left:4px solid var(--c,transparent)}
 
   {% if b.stories %}
   <table class="data-table cards-mobile with-head">
-    <thead><tr><th>N°</th><th>Story</th><th class="c">Resp.</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c" title="Definition of Ready : critères cochés / total">DoR</th><th class="c" title="Définition du Fini : critères cochés / total">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
+    <thead><tr><th>N°</th><th>Story</th><th>Porteurs</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c" title="Definition of Ready : critères cochés / total">DoR</th><th class="c" title="Définition du Fini : critères cochés / total">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
     <tbody>
     {% for s in b.stories %}{% set d = s.dod_etat(dod_commune) %}
       {% set NS = nat(s.nature) %}<tr style="--c:{{ NS.couleur }}">
         <td class="us-id m-hide">{{ s.numero() }}</td>
         <td class="card-head"><span class="nat-badge" style="--c:{{ NS.couleur }}">{{ NS.nom }}</span> <a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% if s.parent %}<span class="ref-parent" title="Rattachée à {{ s.parent.titre }}">&#8627; {{ s.parent.numero() }}</span>{% endif %}</td>
-        <td class="c mono small">{{ s.responsable or '—' }}</td>
+        <td class="small">{{ porteurs(s, '<span class="muted">—</span>') }}</td>
         <td class="c"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span></td>
         <td class="c mono">{{ s.points|fmt if s.points else '—' }}{% if s.points %} <span class="muted small">pts</span>{% endif %}</td>
         <td class="c small">{% if s.taches %}{{ s.taches|length }} · <span class="mono">{{ s.heures()|fmt }} h</span>{% else %}<span class="muted">—</span>{% endif %}</td>

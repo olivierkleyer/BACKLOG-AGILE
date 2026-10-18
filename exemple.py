@@ -140,3 +140,11 @@ AUTRES = [
      'parent': None, 'priorite': 'P3',
      'description': "La bibliothèque actuelle n'est plus maintenue et ralentit l'affichage des grandes parcelles."},
 ]
+
+# RACI des stories du sprint 1 (par titre)
+RACI = {
+    'Importer le plan des parcelles': {'dev1': 'A', 'dev2': 'R', 'dev3': 'R', 'po': 'C'},
+    'Sélectionner les rangs à récolter': {'dev3': 'RA', 'po': 'C'},
+    'Lancer une récolte à distance': {'dev4': 'A', 'dev5': 'R', 'dev1': 'I'},
+    "Arrêt d'urgence à distance": {'dev2': 'RA', 'po': 'I'},
+}

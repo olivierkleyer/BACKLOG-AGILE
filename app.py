@@ -113,6 +113,7 @@ class User(db.Model):
     password_hash = db.Column(db.String(200), nullable=False)
     role = db.Column(db.String(20), default='equipe')   # 'po' ou 'equipe'
     nom_complet = db.Column(db.String(120), default='')
+    prenom = db.Column(db.String(40), default='')         # affiche sur les cartes a la place de l'identifiant
     def set_password(self, p): self.password_hash = generate_password_hash(p)
     def check_password(self, p): return check_password_hash(self.password_hash, p)
 
@@ -181,6 +182,7 @@ class Story(db.Model):
     description = db.Column(db.Text, default='')           # natures autres que user story
     observe = db.Column(db.Text, default='')               # bug : comportement observe
     attendu = db.Column(db.Text, default='')               # bug : comportement attendu
+    raci_json = db.Column(db.Text, default='{}')           # {identifiant: 'R' | 'A' | 'RA' | 'C' | 'I'}
     andon = db.Column(db.Boolean, default=False)           # signal de probleme (point rouge)
     andon_motif = db.Column(db.Text, default='')
     parent = db.relationship('Story', remote_side='Story.id', backref='enfants')
@@ -204,6 +206,18 @@ class Story(db.Model):
 
     @property
     def dor(self): return lire_json(self.dor_json, [])
+
+    @property
+    def raci(self): return lire_json(self.raci_json, {})
+
+    def porteurs(self):
+        """(accountable, [responsibles]) - RA compte dans les deux"""
+        r = self.raci
+        a = next((u for u, v in r.items() if 'A' in v), None)
+        return a, [u for u, v in r.items() if 'R' in v]
+
+    def concerne(self, username):
+        return 'R' in self.raci.get(username, '') or 'A' in self.raci.get(username, '')
 
     def dor_applicable(self, label):
         # un critere qui parle du format « En tant que… » ne concerne que les user stories
@@ -337,7 +351,8 @@ def contexte():
     p = get_projet()
     nats = natures(p)
     return {'projet': p, 'est_po': est_po(), 'STATUTS': STATUTS, 'PRIORITES': PRIORITES,
-            'parcours': parcours(p), 'NATURES': nats,
+            'parcours': parcours(p), 'NATURES': nats, 'PERSONNES': personnes(),
+            'court': lambda u: next((x['court'] for x in personnes() if x['id'] == u), u),
             'nat': lambda code: next((n for n in nats if n['code'] == code), nature_info(p, code))}
 
 def parcours(p):
@@ -520,6 +535,32 @@ def burndown(p, n):
             'points': serie(stories, lambda x: x.points or 0),
             'heures': serie(taches, lambda x: x.heures or 0)}
 
+RACI_ROLES = ['R', 'A', 'RA', 'C', 'I']
+RACI_LIBELLES = {'R': 'R · Responsible (réalise)', 'A': 'A · Accountable (rend des comptes)',
+                 'RA': 'R+A · réalise et rend des comptes', 'C': 'C · Consulted (consulté)', 'I': 'I · Informed (informé)'}
+
+def personnes():
+    """Comptes pouvant porter un role RACI ou une tache : po puis dev1..dev10"""
+    us = User.query.all()
+    us.sort(key=lambda u: (u.role != 'po', int(''.join(c for c in u.username if c.isdigit()) or 0), u.username))
+    return [{'id': u.username, 'court': u.prenom or u.username,
+             'label': '{} – {}'.format(u.username, u.prenom) if u.prenom else u.username} for u in us]
+
+def valider_raci(raci):
+    """Regles : au plus un A ; si un role est attribue, il faut exactement un A et au moins un R.
+    (une personne n'a qu'un role ; seul le cumul R+A est possible, il est porte par la valeur RA)"""
+    if not raci:
+        return None
+    nb_a = sum(1 for v in raci.values() if 'A' in v)
+    nb_r = sum(1 for v in raci.values() if 'R' in v)
+    if nb_a > 1:
+        return 'RACI refusé : un seul Accountable (A) par story ({} désignés).'.format(nb_a)
+    if nb_a == 0:
+        return 'RACI refusé : désignez un Accountable (A), éventuellement cumulé avec R (R+A).'
+    if nb_r == 0:
+        return 'RACI refusé : désignez au moins un Responsible (R), éventuellement le même que l\'Accountable (R+A).'
+    return None
+
 def responsables_connus():
     noms = set()
     for s in Story.query.all():
@@ -538,6 +579,7 @@ def backlog():
     filtre_statut = request.args.get('statut', '')
     filtre_release = request.args.get('release', '')
     filtre_nature = request.args.get('nature', '')
+    filtre_dev = request.args.get('dev', '')
     if filtre_release == '0':
         features = [f for f in features if not f.release_id]
     elif filtre_release:
@@ -553,6 +595,8 @@ def backlog():
             st = [s for s in st if s.statut == filtre_statut]
         if filtre_nature:
             st = [s for s in st if s.nature == filtre_nature]
+        if filtre_dev:
+            st = [s for s in st if s.concerne(filtre_dev)]
         blocs.append({'f': f, 'stories': st, 'cal': cal.get(f.release_id),
                       'points': sum(s.points or 0 for s in f.stories),
                       'fait': sum(s.points or 0 for s in f.stories if s.statut == 'Fait')})
@@ -563,7 +607,7 @@ def backlog():
              'non_planifiees': sum(1 for s in toutes if not s.sprint),
              'non_estimees': sum(1 for s in toutes if not s.points)}
     return render_template('backlog.html', blocs=blocs, stats=stats, dod_commune=p.dod_commune, dor_commune=p.dor_commune,
-                           filtre_sprint=filtre_sprint, filtre_statut=filtre_statut, filtre_release=filtre_release, filtre_nature=filtre_nature,
+                           filtre_sprint=filtre_sprint, filtre_statut=filtre_statut, filtre_release=filtre_release, filtre_nature=filtre_nature, filtre_dev=filtre_dev,
                            releases=Release.query.order_by(Release.ordre, Release.id).all(), cal_rel=cal,
                            responsables=responsables_connus())
 
@@ -663,7 +707,13 @@ def story(sid):
         # andon
         s.andon = bool(fm.get('andon'))
         s.andon_motif = fm.get('andon_motif', '').strip()[:300] if s.andon else ''
-        s.responsable = fm.get('responsable', '').strip().upper()[:40]
+        ids = {x['id'] for x in personnes()}
+        raci = {u: fm.get('raci_' + u) for u in ids if fm.get('raci_' + u) in RACI_ROLES}
+        erreur_raci = valider_raci(raci)
+        if not erreur_raci:
+            s.raci_json = json.dumps(raci)
+            a, rs = s.porteurs()
+            s.responsable = (a or '')[:40]
         s.points = nombre(fm.get('points'))
         s.dor_ok_json = json.dumps([l for i, l in enumerate(p.dor_commune) if fm.get('dorc_{}'.format(i))])
         s.dor_json = json.dumps(liste_criteres(fm, 'dor'))
@@ -683,8 +733,8 @@ def story(sid):
         s.updated_at = datetime.utcnow()
         db.session.commit()
         fait, total = s.dod_etat(p.dod_commune)
-        if erreur or erreur_dor:
-            flash(' '.join(e for e in (erreur_dor, erreur) if e) + ' Les autres modifications sont enregistrées.', 'error')
+        if erreur or erreur_dor or erreur_raci:
+            flash(' '.join(e for e in (erreur_raci, erreur_dor, erreur) if e) + ' Les autres modifications sont enregistrées.', 'error')
         elif s.statut == 'Fait' and fait < total:
             flash('Story enregistrée en « Fait » alors que la Définition du Fini n\'est pas complète ({}/{})'.format(fait, total), 'error')
         else:
@@ -706,7 +756,8 @@ def story(sid):
                            features=Feature.query.order_by(Feature.ordre, Feature.id).all(),
                            responsables=responsables_connus(), dod=s.dod_etat(p.dod_commune),
                            dor_commune=p.dor_commune, dor=s.dor_etat(p.dor_commune),
-                           DOR_DEFAUT=DOR_COMMUNE_DEFAUT, DOD_DEFAUT=DOD_COMMUNE_DEFAUT)
+                           DOR_DEFAUT=DOR_COMMUNE_DEFAUT, DOD_DEFAUT=DOD_COMMUNE_DEFAUT,
+                           RACI_ROLES=RACI_ROLES, RACI_LIBELLES=RACI_LIBELLES)
 
 def liste_criteres(fm, prefixe):
     """Criteres specifiques (DoR ou DoD) saisis sur la fiche : libelles + cases + nouveau critere."""
@@ -793,7 +844,7 @@ def tache_ajouter(sid):
     titre = request.form.get('titre', '').strip()
     if titre:
         db.session.add(Tache(story_id=s.id, titre=titre[:200], heures=nombre(request.form.get('heures')),
-                             responsable=request.form.get('responsable', '').strip().upper()[:40]))
+                             responsable=request.form.get('responsable', '').strip()[:40]))
         db.session.commit()
     return redirect(url_for('story', sid=s.id) + '#taches')
 
@@ -807,7 +858,7 @@ def tache_modifier(tid):
     t.titre = (request.form.get('titre', '').strip() or t.titre)[:200]
     t.heures = nombre(request.form.get('heures'))
     changer_statut_tache(t, request.form.get('statut'))
-    t.responsable = request.form.get('responsable', '').strip().upper()[:40]
+    t.responsable = request.form.get('responsable', '').strip()[:40]
     db.session.commit()
     return redirect(url_for('story', sid=t.story_id) + '#taches')
 
@@ -819,6 +870,9 @@ def kanban():
     n = borne(request.args.get('sprint'), 1, p.nb_sprints, 1)
     sp = Sprint.query.filter_by(numero=n).first()
     stories = Story.query.filter_by(sprint=n).all()
+    filtre_dev = request.args.get('dev', '')
+    if filtre_dev:
+        stories = [s for s in stories if s.concerne(filtre_dev)]
     prio_rang = {k: i for i, k in enumerate(PRIORITES)}
     stories.sort(key=lambda s: (prio_rang.get(s.priorite, 9), s.ordre, s.id))
     colonnes = {st: [s for s in stories if s.statut == st] for st in STATUTS}
@@ -826,7 +880,7 @@ def kanban():
     fait = sum(s.points or 0 for s in stories if s.statut == 'Fait')
     debut, fin = dates_sprint(p, n)
     return render_template('kanban.html', n=n, sp=sp, colonnes=colonnes, engage=engage, fait=fait,
-                           bd=burndown(p, n), dod_bloquante=p.dod_bloquante,
+                           bd=burndown(p, n), dod_bloquante=p.dod_bloquante, filtre_dev=filtre_dev,
                            debut=debut, fin=fin, dod_commune=p.dod_commune,
                            sprints=resume_sprints(p), rel=release_du_sprint(calendrier_releases(p), n),
                            non_planifiees=Story.query.filter_by(sprint=0).count())
@@ -1003,6 +1057,16 @@ def criteres_defaut(quoi):
 def admin_users():
     return render_template('admin_users.html', users=User.query.order_by(User.id).all())
 
+@app.route('/admin/prenoms', methods=['POST'])
+@po_requis
+def admin_prenoms():
+    for u in User.query.all():
+        if 'prenom_{}'.format(u.id) in request.form:
+            u.prenom = request.form.get('prenom_{}'.format(u.id), '').strip()[:40]
+    db.session.commit()
+    flash('Prénoms enregistrés : ils remplacent les identifiants sur les cartes.', 'success')
+    return redirect(url_for('admin_users'))
+
 @app.route('/admin/users/<int:uid>/password', methods=['POST'])
 @po_requis
 def change_password(uid):
@@ -1086,6 +1150,10 @@ def charger_exemple():
                    dor_ok_json=json.dumps(ex.dor_cochee('', 0, 0)))
         db.session.add(st); db.session.flush()
         par_titre[st.titre] = st
+    for titre, raci in getattr(ex, 'RACI', {}).items():
+        if titre in par_titre:
+            par_titre[titre].raci_json = json.dumps(raci)
+            par_titre[titre].responsable = next((u for u, v in raci.items() if 'A' in v), '')
     db.session.commit()
     flash('Exemple ROBO AGRI chargé : sprint 1 prêt à démarrer, le reste du backlog est à estimer et à planifier.', 'success')
     return redirect(url_for('backlog'))

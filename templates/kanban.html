@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_porteurs.html' import porteurs with context %}
 {% block title %}Kanban · Sprint {{ n }}{% endblock %}
 {% block page_title %}Kanban du sprint {{ n }}{% endblock %}
 {% block topbar_actions %}
@@ -64,11 +65,20 @@
 </style>
 {% endblock %}
 {% block content %}
+<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
 <div class="tabs">
   {% for r in sprints %}
-  <a class="tab {% if r.sprint.numero==n %}active{% endif %}" href="{{ url_for('kanban', sprint=r.sprint.numero) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>
+  <a class="tab {% if r.sprint.numero==n %}active{% endif %}" href="{{ url_for('kanban', sprint=r.sprint.numero, dev=filtre_dev or None) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>
   {% endfor %}
 </div>
+<form method="get" style="display:flex;gap:8px;align-items:center"><input type="hidden" name="sprint" value="{{ n }}">
+  <label class="lbl" for="f-dev">Développeur</label>
+  <select id="f-dev" name="dev" onchange="this.form.submit()" style="width:auto">
+    <option value="">Tous</option>
+    {% for x in PERSONNES %}<option value="{{ x.id }}" {% if filtre_dev==x.id %}selected{% endif %}>{{ x.label }}</option>{% endfor %}
+  </select></form>
+</div>
+{% if filtre_dev %}<div class="alert alert-error" style="margin-bottom:14px">Filtre actif : seules les stories dont <b>{{ court(filtre_dev) }}</b> est R ou A sont affichées (les compteurs portent sur ces stories, le burndown sur tout le sprint). <a href="{{ url_for('kanban', sprint=n) }}">Tout afficher</a></div>{% endif %}
 
 <div class="sprint-head">
   <div class="stat-card"><div class="stat-label">Objectif du sprint</div>
@@ -102,7 +112,7 @@
       <div class="kmeta">
         <span class="pts">{{ s.points|fmt if s.points else '?' }} pts</span>
         <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
-        {% if s.responsable %}<span class="mono">{{ s.responsable }}</span>{% endif %}
+        {{ porteurs(s) }}
       </div>
       <div class="kfoot">
         <div class="kmeta">

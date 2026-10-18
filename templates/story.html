@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% from '_porteurs.html' import porteurs with context %}
 {% set N = nat(s.nature) %}
 {% block title %}{{ s.numero() }} · {{ s.titre }}{% endblock %}
 {% block page_title %}<span class="nat-badge" style="--c:{{ N.couleur }}">{{ N.nom }}</span> <span class="mono muted" style="font-size:13px">{{ s.numero() }}</span> &nbsp;{{ s.titre }}{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% endblock %}
@@ -37,7 +38,7 @@
 .dod-score{font-family:'DM Mono',monospace;font-weight:700}
 .side .field{margin-bottom:12px}
 .taches td input,.taches td select{padding:6px 8px;font-size:12px}
-.taches .h{width:80px}.taches .r{width:90px}.taches .st{width:110px}
+.taches .h{width:80px}.taches .r{width:120px}.taches .st{width:110px}
 .taches tfoot td{font-weight:700;background:var(--gray-50)}
 .grp[hidden]{display:none}
 .enfants{list-style:none;display:flex;flex-direction:column;gap:6px;margin-top:10px}
@@ -46,6 +47,12 @@
 .andon-card.on{border-color:#fca5a5;background:#fff7f7}
 .andon-card label.chk{display:flex;gap:10px;align-items:center;font-weight:700;font-size:13px;cursor:pointer;color:var(--gray-900)}
 .andon-card input[type=checkbox]{width:18px;height:18px;accent-color:var(--red)}
+.raci-tab{width:100%;border-collapse:collapse;font-size:13px}
+.raci-tab td{padding:5px 4px;border-bottom:1px solid var(--gray-100)}
+.raci-tab td:first-child{font-weight:600;color:var(--navy)}
+.raci-tab select{padding:5px 8px;font-size:12px;max-width:230px}
+.raci-tab tr.on td{background:var(--blue-ll)}
+.raci-regle{font-size:12px;color:var(--gray-500);margin:-6px 0 10px}
 .pj-list{list-style:none;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .pj-list li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px}
 .pj-list a{color:var(--navy);font-weight:600;text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
@@ -53,9 +60,8 @@
 @media(max-width:900px){.fiche{grid-template-columns:1fr}}
 </style>
 {% endblock %}
-{% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. La nature, le titre, la description, les critères d'acceptation et la priorité sont rédigés par le Product Owner. Vous pouvez modifier le statut, le responsable, l'estimation, le sprint, le rattachement, l'andon, la DoR, la DoD, les tâches et les pièces jointes. Pour modifier le reste, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
+{% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. La nature, le titre, la description, les critères d'acceptation et la priorité sont rédigés par le Product Owner. Vous pouvez modifier le statut, le RACI, l'estimation, le sprint, le rattachement, l'andon, la DoR, la DoD, les tâches et les pièces jointes. Pour modifier le reste, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
 {% block content %}
-<datalist id="resp">{% for r in responsables %}<option value="{{ r }}">{% endfor %}</datalist>
 
 {% if cal and s.sprint and not (cal.s1 <= s.sprint <= cal.s2) %}
 <div class="alert alert-error">Cette story est planifiée au sprint {{ s.sprint }}, en dehors de sa release <b>{{ cal.r.nom }}</b> (sprints {{ cal.s1 }} à {{ cal.s2 }}, fin le {{ cal.fin.strftime('%d/%m/%Y') if cal.fin else '—' }}).</div>
@@ -116,6 +122,21 @@
         {% endfor %}
       </ul>
       {% endif %}
+    </div>
+
+    <div class="card" id="raci">
+      <div class="card-title" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span>Responsabilités (RACI)</span>
+        {{ porteurs(s, '<span class="muted">non défini</span>') }}</div>
+      <p class="raci-regle">Facultatif. Si vous l'utilisez : <b>un seul A</b> (Accountable, rend des comptes) et <b>au moins un R</b> (Responsible, réalise). Une personne n'a qu'un rôle ; seul le cumul <b>R+A</b> est possible. C = consulté, I = informé.</p>
+      <table class="raci-tab">
+        {% for x in PERSONNES %}{% set v = s.raci.get(x.id, '') %}
+        <tr class="{{ 'on' if v }}"><td>{{ x.label }}</td><td style="text-align:right">
+          <select name="raci_{{ x.id }}">
+            <option value="">—</option>
+            {% for r in RACI_ROLES %}<option value="{{ r }}" {% if v==r %}selected{% endif %}>{{ RACI_LIBELLES[r] }}</option>{% endfor %}
+          </select></td></tr>
+        {% endfor %}
+      </table>
     </div>
 
     <div class="card">
@@ -197,7 +218,6 @@
       <div class="card-title">Pilotage</div>
       <div class="field"><label>Statut</label>
         <select name="statut">{% for st in STATUTS %}<option {% if st==s.statut %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></div>
-      <div class="field"><label>Responsable</label><input type="text" name="responsable" value="{{ s.responsable }}" list="resp" placeholder="Trigramme" maxlength="40" style="text-transform:uppercase"></div>
       <div class="field"><label>Priorité</label>
         <select name="priorite" {% if not est_po %}disabled{% endif %}>{% for p in PRIORITES %}<option {% if p==s.priorite %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
       <div class="field"><label>Estimation (points)</label><input type="number" name="points" min="0" step="0.5" value="{{ s.points|fmt }}"></div>
@@ -233,7 +253,7 @@
       <tr>
         <td><input form="{{ fid }}" type="text" name="titre" value="{{ t.titre }}" required></td>
         <td class="c"><input form="{{ fid }}" class="h" type="number" name="heures" min="0" step="0.5" value="{{ t.heures|fmt }}"></td>
-        <td class="c"><input form="{{ fid }}" class="r" type="text" name="responsable" value="{{ t.responsable }}" list="resp" style="text-transform:uppercase"></td>
+        <td class="c"><select form="{{ fid }}" class="r" name="responsable"><option value="">—</option>{% for x in PERSONNES %}<option value="{{ x.id }}" {% if x.id==t.responsable %}selected{% endif %}>{{ x.court }}</option>{% endfor %}{% if t.responsable and t.responsable not in PERSONNES|map(attribute='id') %}<option selected>{{ t.responsable }}</option>{% endif %}</select></td>
         <td class="c"><select form="{{ fid }}" class="st" name="statut" onchange="this.form.submit()">{% for st in STATUTS %}<option {% if st==t.statut %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></td>
         <td class="c" style="white-space:nowrap"><button form="{{ fid }}" class="btn btn-ghost btn-sm">OK</button> <button form="{{ fid }}" class="btn-link" name="supprimer" value="1" title="Supprimer la tâche" onclick="return confirm('Supprimer cette tâche ?')">&#10005;</button></td>
       </tr>
@@ -241,7 +261,7 @@
       <tr>
         <td><input form="ft-new" type="text" name="titre" placeholder="Nouvelle tâche…" required></td>
         <td class="c"><input form="ft-new" class="h" type="number" name="heures" min="0" step="0.5" placeholder="h"></td>
-        <td class="c"><input form="ft-new" class="r" type="text" name="responsable" list="resp" placeholder="Resp." style="text-transform:uppercase"></td>
+        <td class="c"><select form="ft-new" class="r" name="responsable"><option value="">Resp.</option>{% for x in PERSONNES %}<option value="{{ x.id }}">{{ x.court }}</option>{% endfor %}</select></td>
         <td></td>
         <td class="c"><button form="ft-new" class="btn btn-success btn-sm">+ Tâche</button></td>
       </tr>
