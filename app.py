@@ -443,7 +443,11 @@ def parcours(p):
     stories = Story.query.all()
     pretes = [s for s in stories if s.points and s.est_prete(p.dor_commune)]
     premiere = Feature.query.order_by(Feature.ordre, Feature.id).first()
-    a_affiner = next((s for s in stories if not (s.points and s.est_prete(p.dor_commune))), None)
+    non_pretes = [s for s in stories if not (s.points and s.est_prete(p.dor_commune))]
+    # la story « suivante » a affiner : on saute celle deja ouverte
+    ouverte = (request.view_args or {}).get('sid') if request.endpoint == 'story' else None
+    a_affiner = next((s for s in non_pretes if s.id != ouverte), None) or (non_pretes[0] if non_pretes else None)
+    planifiees = [s for s in stories if s.sprint]
     etapes = [
         {'n': 1, 'nom': 'Releases', 'ok': Release.query.count() > 0, 'po': True,
          'action': 'Créez une release et indiquez son nombre de sprints.',
@@ -452,12 +456,19 @@ def parcours(p):
          'action': 'Créez une feature et rattachez-la à une release.',
          'lien': url_for('backlog') + '#nouvelle-feature', 'bouton': 'Créer une feature'},
         {'n': 3, 'nom': 'Stories', 'ok': len(stories) > 0, 'po': True,
+         'compte': '{}'.format(len(stories)) if stories else '',
+         'condition': 'Passe au vert dès la première story créée.',
          'action': 'Ajoutez des stories dans une feature : choisissez leur nature (user story, story technique, bug…) et leur titre.',
          'lien': url_for('backlog') + ('#feature-{}'.format(premiere.id) if premiere else ''), 'bouton': 'Ajouter des stories'},
         {'n': 4, 'nom': 'Estimer et rendre prêtes les stories', 'ok': len(pretes) > 0, 'po': False,
+         'compte': '{}/{}'.format(len(pretes), len(stories)) if stories else '',
+         'condition': "{} story(s) prête(s) sur {}. Passe au vert dès qu'une story a des points ET toute sa DoR cochée.".format(len(pretes), len(stories)),
          'action': "Ouvrez chaque story : estimez-la en points, rattachez-la si besoin à une story parente et cochez sa Definition of Ready.",
-         'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'), 'bouton': 'Affiner une story'},
+         'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'),
+         'bouton': ('Story suivante à affiner : ' + a_affiner.numero()) if a_affiner else 'Ouvrir le backlog'},
         {'n': 5, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
+         'compte': '{}/{}'.format(len(planifiees), len(pretes)) if pretes else '',
+         'condition': "{} story(s) planifiée(s) ; {} story(s) prête(s). Passe au vert dès qu'une story est affectée à un sprint.".format(len(planifiees), len(pretes)),
          'action': 'Affectez les stories prêtes à un sprint (liste « Affecter à… »).' if pretes else
                    "Aucune story n'est encore prête : terminez d'abord l'étape 4 (estimation + DoR complète).",
          'lien': url_for('sprints') + '#non-planifiees', 'bouton': 'Planifier'},

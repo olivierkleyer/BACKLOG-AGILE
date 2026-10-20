@@ -57,7 +57,7 @@
 .pj-list li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px}
 .pj-list a{color:var(--navy);font-weight:600;text-decoration:none;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .pj-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-@media(max-width:900px){.fiche{grid-template-columns:1fr}}
+@media(max-width:900px){.fiche{grid-template-columns:1fr}.fiche>.side{order:-1}}
 </style>
 {% endblock %}
 {% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. La nature, le titre, la description, les critères d'acceptation et la priorité sont rédigés par le Product Owner. Vous pouvez modifier le statut, le RACI, l'estimation, le sprint, le rattachement, l'andon, la DoR, la DoD, les tâches et les pièces jointes. Pour modifier le reste, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
@@ -209,11 +209,6 @@
   </div>
 
   <div class="side">
-    <div class="card andon-card {{ 'on' if s.andon }}" id="andon-card">
-      <label class="chk"><input type="checkbox" name="andon" id="andon" {% if s.andon %}checked{% endif %}><span class="andon"></span> Andon : signaler un problème</label>
-      <div class="field" id="andon-motif" style="margin:10px 0 0" {% if not s.andon %}hidden{% endif %}><label>Motif</label>
-        <input type="text" name="andon_motif" value="{{ s.andon_motif }}" maxlength="300" placeholder="ex : bloqué par l'accès au simulateur"></div>
-    </div>
     <div class="card">
       <div class="card-title">Pilotage</div>
       <div class="field"><label>Statut</label>
@@ -228,6 +223,11 @@
         </select>
         {% if dor[1] %}<span class="pret {{ 'oui' if dor[0]==dor[1] else 'non' }}">{{ 'Prête pour un sprint' if dor[0]==dor[1] else 'Pas prête (DoR ' ~ dor[0] ~ '/' ~ dor[1] ~ ')' }}</span>{% endif %}</div>
       <button class="btn btn-primary" style="width:100%;justify-content:center">Enregistrer la story</button>
+    </div>
+    <div class="card andon-card {{ 'on' if s.andon }}" id="andon-card">
+      <label class="chk"><input type="checkbox" name="andon" id="andon" {% if s.andon %}checked{% endif %}><span class="andon"></span> Andon : signaler un problème</label>
+      <div class="field" id="andon-motif" style="margin:10px 0 0" {% if not s.andon %}hidden{% endif %}><label>Motif</label>
+        <input type="text" name="andon_motif" value="{{ s.andon_motif }}" maxlength="300" placeholder="ex : bloqué par l'accès au simulateur"></div>
     </div>
     <div class="card small muted">
       Tâches : <strong class="mono" style="color:var(--navy)">{{ s.heures()|fmt }} h</strong> estimées,

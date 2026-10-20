@@ -16,6 +16,7 @@
   --radius:12px;--radius-sm:8px;
 }
 *{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
 body{font-family:'DM Sans',sans-serif;background:var(--gray-50);color:var(--gray-900);min-height:100vh}
 a{color:var(--blue)}
 .app{display:flex;min-height:100vh}
@@ -82,7 +83,7 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .parcours-next .who{font-size:11px;font-weight:700;color:var(--gray-500);text-transform:uppercase;letter-spacing:.6px;margin-right:6px}
 .cible{animation:cible 2.6s ease-out}
 @keyframes cible{0%,60%{box-shadow:0 0 0 3px var(--blue),0 0 0 8px rgba(37,99,235,.18)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
-.parcours.ferme .parcours-steps,.parcours.ferme .parcours-next{display:none}
+.parcours.ferme .parcours-steps,.parcours.ferme .parcours-next,.parcours.ferme .parcours-aide{display:none}
 .parcours.ferme{padding:10px 18px}
 .nat-badge{--c:#64748b;display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 11%,white);border:1px solid color-mix(in srgb,var(--c) 32%,white);white-space:nowrap;vertical-align:middle;line-height:1.4}
 .andon{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 3px rgba(220,38,38,.22);vertical-align:middle;animation:andon 1.6s ease-in-out infinite;flex:none}
@@ -92,6 +93,8 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .porteurs b.r{background:var(--gray-500)}
 .toasts{position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:500;display:flex;flex-direction:column;gap:8px;width:min(640px,calc(100% - 24px));pointer-events:none}
 .toasts .alert{margin:0;box-shadow:0 8px 24px rgba(15,23,42,.18);pointer-events:auto;transition:opacity .4s}
+.pcompte{font-family:'DM Mono',monospace;font-size:10.5px;font-weight:700;background:white;border-radius:99px;padding:1px 6px;margin-left:2px}
+.pcond{font-size:12px;color:var(--blue);margin-top:4px;font-weight:600}
 .parcours-aide{font-size:11px;color:var(--gray-500);margin:-4px 0 10px}
 .mobile-title small{font-weight:500;opacity:.6;margin-left:6px}
 /* Badges */
@@ -221,11 +224,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
         <div class="parcours-head"><div class="card-title">Mise en route · étape {{ c.n }} sur {{ parcours.etapes|length }}</div>
           <button type="button" class="btn-link" id="parcours-toggle">Masquer</button></div>
         <div class="parcours-steps">
-          {% for e in parcours.etapes %}<a class="pstep {{ 'ok' if e.ok else ('cur' if e.n == c.n else '') }}" href="{{ e.lien }}"><b>{{ '✓' if e.ok else e.n }}</b>{{ e.nom }}</a>{% endfor %}
+          {% for e in parcours.etapes %}<a class="pstep {{ 'ok' if e.ok else ('cur' if e.n == c.n else '') }}" href="{{ e.lien }}"><b>{{ '✓' if e.ok else e.n }}</b>{{ e.nom }}{% if e.compte %}<span class="pcompte">{{ e.compte }}</span>{% endif %}</a>{% endfor %}
         </div>
         <p class="parcours-aide">Une étape passe au vert quand elle est réalisée ; cliquer sur une étape mène simplement à la page concernée.</p>
         <div class="parcours-next">
-          <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}</div>
+          <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}
+            {% if c.condition %}<div class="pcond">{{ c.condition }}</div>{% endif %}</div>
           {% if est_po or not c.po %}<a class="btn btn-primary btn-sm" href="{{ c.lien }}">{{ c.bouton }} &rarr;</a>{% endif %}
         </div>
       </div>
