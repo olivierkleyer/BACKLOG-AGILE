@@ -230,8 +230,16 @@ class Story(db.Model):
         return fait, len(communs) + len(self.dor)
 
     def est_prete(self, dor_commune):
+        """Une seule definition partout : DoR complete ET story estimee (points > 0)."""
         f, t = self.dor_etat(dor_commune)
-        return f == t
+        return f == t and bool(self.points)
+
+    def manque_pour_etre_prete(self, dor_commune):
+        f, t = self.dor_etat(dor_commune)
+        manques = []
+        if f < t: manques.append('DoR {}/{}'.format(f, t))
+        if not self.points: manques.append('estimation manquante')
+        return ' · '.join(manques)
 
     def dod_etat(self, dod_commune):
         """(cases cochees, cases totales) sur DoD commune + DoD specifique"""
@@ -441,9 +449,9 @@ def contexte():
 def parcours(p):
     """Fil conducteur : les 6 etapes du PO et de l'equipe, avec la prochaine action."""
     stories = Story.query.all()
-    pretes = [s for s in stories if s.points and s.est_prete(p.dor_commune)]
+    pretes = [s for s in stories if s.est_prete(p.dor_commune)]
     premiere = Feature.query.order_by(Feature.ordre, Feature.id).first()
-    non_pretes = [s for s in stories if not (s.points and s.est_prete(p.dor_commune))]
+    non_pretes = [s for s in stories if not s.est_prete(p.dor_commune)]
     # la story « suivante » a affiner : on saute celle deja ouverte
     ouverte = (request.view_args or {}).get('sid') if request.endpoint == 'story' else None
     a_affiner = next((s for s in non_pretes if s.id != ouverte), None) or (non_pretes[0] if non_pretes else None)
@@ -462,7 +470,7 @@ def parcours(p):
          'lien': url_for('backlog') + ('#feature-{}'.format(premiere.id) if premiere else ''), 'bouton': 'Ajouter des stories'},
         {'n': 4, 'nom': 'Estimer et rendre prêtes les stories', 'ok': len(pretes) > 0, 'po': False,
          'compte': '{}/{}'.format(len(pretes), len(stories)) if stories else '',
-         'condition': "{} story(s) prête(s) sur {}. Passe au vert dès qu'une story a des points ET toute sa DoR cochée.".format(len(pretes), len(stories)),
+         'condition': "{} story(s) prête(s) sur {}. Passe au vert dès qu'au moins une story est prête (estimée ET DoR complète) : inutile de toutes les préparer avant de planifier.".format(len(pretes), len(stories)),
          'action': "Ouvrez chaque story : estimez-la en points, rattachez-la si besoin à une story parente et cochez sa Definition of Ready.",
          'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'),
          'bouton': ('Story suivante à affiner : ' + a_affiner.numero()) if a_affiner else 'Ouvrir le backlog'},
@@ -603,8 +611,7 @@ def changer_statut_story(s, nouveau, p):
 def affecter_sprint(s, n, p):
     """Affecte une story a un sprint (0 = backlog) en appliquant la DoR bloquante. Renvoie une erreur ou None."""
     if n and n != s.sprint and p.dor_bloquante and not s.est_prete(p.dor_commune):
-        f, t = s.dor_etat(p.dor_commune)
-        return "« {} » n'est pas prête (Definition of Ready {}/{}) : elle ne peut pas entrer dans un sprint.".format(s.titre, f, t)
+        return "« {} » n'est pas prête ({}) : elle ne peut pas entrer dans un sprint.".format(s.titre, s.manque_pour_etre_prete(p.dor_commune))
     if s.statut == 'Fait' and n != s.sprint:
         s.fait_jour = jour_du_sprint(n)
     s.sprint = n

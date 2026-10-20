@@ -166,9 +166,9 @@ tr.courant td{background:var(--blue-ll)}
     <div class="t"><a href="{{ url_for('story', sid=s.id) }}" style="font-weight:600;color:var(--navy);text-decoration:none">{{ s.titre }}</a>
       <div class="small muted">{{ s.numero() }} · {{ s.feature.nom }}{% if s.feature.release %} · {{ s.feature.release.nom }}{% endif %}</div></div>
     <span class="mono small">{{ s.points|fmt if s.points else '?' }} pts</span>
-    {% set r = s.dor_etat(dor_commune) %}<span class="badge {{ 'pr-P3' if r[0]==r[1] else 'pr-P2' }}" title="Definition of Ready">{{ 'Prête' if r[0]==r[1] else 'DoR ' ~ r[0] ~ '/' ~ r[1] }}</span>
-    {% set d = s.dor_etat(dor_commune) %}{% if dor_bloquante and d[0] < d[1] %}
-    <a class="btn btn-ghost btn-sm np-dor" href="{{ url_for('story', sid=s.id) }}#dor-bloc" title="La DoR est bloquante : la story doit être prête avant d'entrer dans un sprint">Pas prête · compléter la DoR &rarr;</a>
+    {% set prete = s.est_prete(dor_commune) %}<span class="badge {{ 'pr-P3' if prete else 'pr-P2' }}" title="Prête = estimée et DoR complète">{{ 'Prête' if prete else s.manque_pour_etre_prete(dor_commune) }}</span>
+    {% if dor_bloquante and not prete %}
+    <a class="btn btn-ghost btn-sm np-dor" href="{{ url_for('story', sid=s.id) }}" title="La DoR est bloquante : la story doit être estimée et avoir sa DoR complète avant d'entrer dans un sprint">Pas prête · compléter &rarr;</a>
     {% else %}
     <select name="sprint" onchange="this.form.submit()">
       <option value="0">Affecter à…</option>

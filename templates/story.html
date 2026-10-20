@@ -145,7 +145,7 @@
         <span style="display:flex;gap:10px;align-items:center">{% if est_po %}<button type="button" class="btn-crit" data-cible="edit-dor">&#9998; Modifier les critères communs</button>{% endif %}
         <span class="dod-score" style="color:{{ 'var(--blue)' if dor[1] and dor[0]==dor[1] else 'var(--gray-500)' }}">{{ dor[0] }} / {{ dor[1] }}</span></span>
       </div>
-      <p class="aide">Avant le sprint : les conditions pour que la story puisse entrer dans un sprint.</p>
+      <p class="aide">Avant le sprint : les conditions pour que la story puisse entrer dans un sprint. Une story est « prête » quand sa DoR est complète <b>et</b> qu'elle est estimée (bloc Pilotage).</p>
       <p class="regle">Chaque critère listé s'applique à cette story : <b>case cochée = critère atteint</b>, case vide = non atteint{% if projet.dor_bloquante %} (la story ne pourra pas entrer en sprint){% endif %}. {% if est_po %}Pour changer les critères communs, cliquez sur « Modifier les critères communs »{% else %}Les critères communs sont fixés par le PO{% endif %} ; les critères propres à cette story s'ajoutent en bas du bloc.</p>
       {% if est_po %}
       <div class="crit-edit" id="edit-dor" hidden>
@@ -221,7 +221,7 @@
           <option value="0">Non planifiée</option>
           {% for i in range(1, projet.nb_sprints+1) %}<option value="{{ i }}" {% if s.sprint==i %}selected{% endif %}>Sprint {{ i }}{% if cal and cal.s1 <= i <= cal.s2 %} · {{ cal.r.nom }}{% endif %}</option>{% endfor %}
         </select>
-        {% if dor[1] %}<span class="pret {{ 'oui' if dor[0]==dor[1] else 'non' }}">{{ 'Prête pour un sprint' if dor[0]==dor[1] else 'Pas prête (DoR ' ~ dor[0] ~ '/' ~ dor[1] ~ ')' }}</span>{% endif %}</div>
+        {% if s.est_prete(dor_commune) %}<span class="pret oui">Prête pour un sprint</span>{% else %}<span class="pret non">Pas prête : {{ s.manque_pour_etre_prete(dor_commune) }}</span>{% endif %}</div>
       <button class="btn btn-primary" style="width:100%;justify-content:center">Enregistrer la story</button>
     </div>
     <div class="card andon-card {{ 'on' if s.andon }}" id="andon-card">
