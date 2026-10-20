@@ -217,10 +217,8 @@
         <select name="priorite" {% if not est_po %}disabled{% endif %}>{% for p in PRIORITES %}<option {% if p==s.priorite %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
       <div class="field"><label>Estimation (points)</label><input type="number" name="points" min="0" step="0.5" value="{{ s.points|fmt }}"></div>
       <div class="field"><label>Sprint</label>
-        <select name="sprint">
-          <option value="0">Non planifiée</option>
-          {% for i in range(1, projet.nb_sprints+1) %}<option value="{{ i }}" {% if s.sprint==i %}selected{% endif %}>Sprint {{ i }}{% if cal and cal.s1 <= i <= cal.s2 %} · {{ cal.r.nom }}{% endif %}</option>{% endfor %}
-        </select>
+        <div class="sprint-info">{% if s.sprint %}<b>Sprint {{ s.sprint }}</b>{% if cal and cal.s1 <= s.sprint <= cal.s2 %} · {{ cal.r.nom }}{% endif %}{% else %}Non planifiée{% endif %}
+          · <a href="{{ url_for('planifier', sprint=s.sprint or None) }}">Planifier &rarr;</a></div>
         {% if s.est_prete(dor_commune) %}<span class="pret oui">Prête pour un sprint</span>{% else %}<span class="pret non">Pas prête : {{ s.manque_pour_etre_prete(dor_commune) }}</span>{% endif %}</div>
       <button class="btn btn-primary" style="width:100%;justify-content:center">Enregistrer la story</button>
     </div>

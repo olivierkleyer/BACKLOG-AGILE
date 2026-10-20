@@ -478,9 +478,9 @@ def parcours(p):
          'bouton': ('Story suivante à affiner : ' + a_affiner.numero()) if a_affiner else 'Ouvrir le backlog'},
         {'n': 6, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
          'compte': '{}/{}'.format(len(planifiees), len(pretes)) if pretes else '',
-         'action': 'Affectez les stories prêtes à un sprint (liste « Affecter à… »).' if pretes else
+         'action': "Fixez l'objectif et la capacité du sprint, puis faites-y entrer les stories prêtes, par priorité, sans dépasser la capacité." if pretes else
                    "Aucune story n'est encore prête : terminez d'abord l'étape 5 (estimation + DoR complète).",
-         'lien': url_for('sprints') + '#non-planifiees', 'bouton': 'Planifier'},
+         'lien': url_for('planifier'), 'bouton': 'Planifier'},
         {'n': 7, 'nom': 'Jouer le sprint (Kanban)', 'ok': any(s.statut != 'A faire' for s in stories if s.sprint), 'po': False,
          'action': 'Faites avancer les cartes sur le Kanban ; le PO avance le jour après chaque daily.',
          'lien': url_for('kanban'), 'bouton': 'Ouvrir le Kanban'},
@@ -835,7 +835,7 @@ def story(sid):
                     nouv = [l.strip()[:200] for l in fm.get(champ, '').splitlines() if l.strip()]
                     if nouv != lire_json(getattr(p, attr), []):
                         setattr(p, attr, json.dumps(nouv)); maj_criteres.append(nom)
-        erreur_dor = affecter_sprint(s, borne(fm.get('sprint'), 0, p.nb_sprints, 0), p)
+        erreur_dor = None   # l'affectation a un sprint se fait uniquement sur la page Planifier le sprint
         # DoD specifique : libelles + cases
         s.dod_json = json.dumps(liste_criteres(fm, 'dod'))
         erreur = changer_statut_story(s, fm.get('statut'), p)
@@ -1127,12 +1127,44 @@ def release_supprimer(rid):
 def story_sprint(sid):
     s = db.get_or_404(Story, sid)
     p = get_projet()
-    erreur = affecter_sprint(s, borne(request.form.get('sprint'), 0, p.nb_sprints, 0), p)
+    cible = borne(request.form.get('sprint'), 0, p.nb_sprints, 0)
+    vue = borne(request.form.get('vue'), 1, p.nb_sprints, cible or s.sprint or 1)
+    erreur = affecter_sprint(s, cible, p)
     db.session.commit()
     if erreur:
-        flash(erreur + ' Complétez sa DoR sur la fiche story.', 'error')
-        return redirect(url_for('sprints'))
-    return redirect(url_for('sprints') + '#non-planifiees')
+        flash(erreur + ' Complétez-la sur sa fiche (estimation et DoR).', 'error')
+    return redirect(url_for('planifier', sprint=vue))
+
+def sprint_a_planifier(p):
+    """Premier sprint dont la revue n'est pas cloturee."""
+    closes = {r.sprint for r in Revue.query.filter_by(cloturee=True).all()}
+    return next((n for n in range(1, p.nb_sprints + 1) if n not in closes), 1)
+
+@app.route('/planifier', methods=['GET', 'POST'])
+@connecte
+def planifier():
+    p = get_projet()
+    n = borne(request.args.get('sprint'), 1, p.nb_sprints, sprint_a_planifier(p))
+    sp = Sprint.query.filter_by(numero=n).first()
+    if request.method == 'POST':
+        if not est_po():
+            flash("Seul le Product Owner fixe l'objectif et la capacité", 'error')
+        else:
+            sp.objectif = request.form.get('objectif', '').strip()
+            sp.capacite = nombre(request.form.get('capacite'))
+            db.session.commit(); flash('Objectif et capacité du sprint {} enregistrés'.format(n), 'success')
+        return redirect(url_for('planifier', sprint=n))
+    prio_rang = {k: i for i, k in enumerate(PRIORITES)}
+    cle = lambda s: (prio_rang.get(s.priorite, 9), s.feature.ordre, s.ordre, s.id)
+    libres = sorted(Story.query.filter_by(sprint=0).all(), key=cle)
+    pretes = [s for s in libres if s.est_prete(p.dor_commune)]
+    pas_pretes = [s for s in libres if not s.est_prete(p.dor_commune)]
+    dans = sorted(Story.query.filter_by(sprint=n).all(), key=cle)
+    engage = sum(s.points or 0 for s in dans)
+    debut, fin = dates_sprint(p, n)
+    return render_template('planifier.html', n=n, sp=sp, pretes=pretes, pas_pretes=pas_pretes, dans=dans,
+                           engage=engage, debut=debut, fin=fin, sprints=resume_sprints(p),
+                           rel=release_du_sprint(calendrier_releases(p), n), dor_commune=p.dor_commune)
 
 @app.route('/parametres', methods=['GET', 'POST'])
 @po_requis

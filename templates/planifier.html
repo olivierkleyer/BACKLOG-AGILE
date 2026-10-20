@@ -1,0 +1,102 @@
+{% extends 'base.html' %}
+{% block title %}Planifier · Sprint {{ n }}{% endblock %}
+{% block page_title %}Planifier le sprint {{ n }}{% endblock %}
+{% block topbar_actions %}
+  {% if rel %}<span class="badge sp">{{ rel.r.nom }} · fin {{ rel.fin.strftime('%d/%m/%Y') if rel.fin else '—' }}</span>{% endif %}
+  {% if debut %}<span class="small muted">du {{ debut.strftime('%d/%m/%Y') }} au {{ fin.strftime('%d/%m/%Y') }}</span>{% endif %}
+{% endblock %}
+{% block extra_css %}
+<style>
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tab{padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;color:var(--gray-700);background:white;border:1px solid var(--gray-200)}
+.tab:hover{border-color:var(--blue);color:var(--blue)}
+.tab.active{background:var(--navy);color:white;border-color:var(--navy)}
+.tab .cnt{font-weight:500;opacity:.6;margin-left:4px}
+.plan-head{display:grid;grid-template-columns:minmax(0,1fr) 260px auto;gap:14px;align-items:end}
+.plan-head .field{margin:0}
+.jauge{font-size:13px}
+.jauge .val{font-family:var(--mono,monospace);font-weight:800;font-size:20px;color:var(--navy)}
+.jauge.over .val{color:var(--red)}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start}
+.pl-row{display:flex;align-items:center;gap:8px;padding:9px 0;border-bottom:1px solid var(--gray-100)}
+.pl-row:last-child{border-bottom:none}
+.pl-row .t{flex:1;min-width:0}
+.pl-row .t a{font-weight:600;color:var(--navy);text-decoration:none}
+.pl-row form{margin:0}
+.vide{color:var(--gray-500);font-size:13px;padding:10px 0}
+details.pp summary{cursor:pointer;font-size:12.5px;color:var(--gray-500);margin-top:14px}
+details.pp .pl-row{opacity:.75}
+@media(max-width:900px){.cols,.plan-head{grid-template-columns:1fr}}
+</style>
+{% endblock %}
+{% block content %}
+<div class="tabs">
+  {% for r in sprints %}
+  <a class="tab {% if r.sprint.numero==n %}active{% endif %}" href="{{ url_for('planifier', sprint=r.sprint.numero) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>
+  {% endfor %}
+</div>
+
+{% set over = sp.capacite and engage > sp.capacite %}
+<div class="card">
+  <div class="card-title">Objectif et capacité du sprint {{ n }}</div>
+  <form class="plan-head" method="post">
+    <div class="field"><label>Objectif du sprint</label>
+      <input type="text" name="objectif" value="{{ sp.objectif }}" placeholder="ex : lancer et arrêter une récolte en sécurité" {% if not est_po %}disabled{% endif %}></div>
+    <div class="field"><label>Capacité de l'équipe (points)</label>
+      <input type="number" name="capacite" min="0" step="0.5" value="{{ sp.capacite|fmt if sp.capacite else '' }}" {% if not est_po %}disabled{% endif %}></div>
+    {% if est_po %}<button class="btn btn-primary">Enregistrer</button>{% endif %}
+  </form>
+  <div class="jauge {{ 'over' if over }}" style="margin-top:16px">
+    <span class="val">{{ engage|fmt }}</span> / {{ sp.capacite|fmt if sp.capacite else '?' }} points engagés
+    {% if sp.capacite %}<div class="progress {{ 'over' if over }}" style="margin-top:6px"><span style="width:{{ [100, (100*engage/sp.capacite)|round|int]|min }}%"></span></div>{% endif %}
+    {% if over %}<div class="small" style="color:var(--red);margin-top:6px">Capacité dépassée : retirez une story ou augmentez la capacité.</div>
+    {% elif not sp.capacite %}<div class="small muted" style="margin-top:6px">Fixez la capacité pour savoir quand le sprint est plein.</div>{% endif %}
+  </div>
+</div>
+
+<div class="cols">
+  <div class="card">
+    <div class="card-title">Stories prêtes · par priorité</div>
+    {% for s in pretes %}
+    <div class="pl-row">
+      <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
+      <div class="t"><a href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>
+        <div class="small muted">{{ s.numero() }} · <span style="color:{{ nat(s.nature).couleur }}">{{ nat(s.nature).nom }}</span> · {{ s.feature.nom }}</div></div>
+      <span class="mono small">{{ s.points|fmt }} pts</span>
+      <form method="post" action="{{ url_for('story_sprint', sid=s.id) }}"><input type="hidden" name="sprint" value="{{ n }}"><input type="hidden" name="vue" value="{{ n }}">
+        <button class="btn btn-success btn-sm" title="Faire entrer dans le sprint {{ n }}">Ajouter &rarr;</button></form>
+    </div>
+    {% else %}
+    <p class="vide">Aucune story prête hors sprint. Une story est prête quand elle est estimée et que sa DoR est complète.</p>
+    {% endfor %}
+    {% if pas_pretes %}
+    <details class="pp"><summary>{{ pas_pretes|length }} story(s) pas encore prête(s)</summary>
+      {% for s in pas_pretes %}
+      <div class="pl-row">
+        <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
+        <div class="t"><a href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>
+          <div class="small muted">{{ s.numero() }} · {{ s.manque_pour_etre_prete(dor_commune) }}</div></div>
+        <a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=s.id) }}">Compléter &rarr;</a>
+      </div>
+      {% endfor %}
+    </details>
+    {% endif %}
+  </div>
+
+  <div class="card">
+    <div class="card-title">Dans le sprint {{ n }} · {{ dans|length }} story(s)</div>
+    {% for s in dans %}
+    <div class="pl-row">
+      <form method="post" action="{{ url_for('story_sprint', sid=s.id) }}"><input type="hidden" name="sprint" value="0"><input type="hidden" name="vue" value="{{ n }}">
+        <button class="btn btn-ghost btn-sm" title="Remettre dans le backlog">&larr; Retirer</button></form>
+      <div class="t"><a href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>
+        <div class="small muted">{{ s.numero() }} · {{ s.statut }}</div></div>
+      <span class="mono small">{{ s.points|fmt if s.points else '?' }} pts</span>
+    </div>
+    {% else %}
+    <p class="vide">Aucune story dans ce sprint : ajoutez des stories prêtes depuis la colonne de gauche.</p>
+    {% endfor %}
+    {% if dans %}<div style="margin-top:12px;text-align:right"><a class="btn btn-primary btn-sm" href="{{ url_for('kanban', sprint=n) }}">Ouvrir le Kanban du sprint {{ n }} &rarr;</a></div>{% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -85,7 +85,7 @@
 <div class="sprint-head">
   <div class="stat-card"><div class="stat-label">Objectif du sprint</div>
     <div class="objectif">{{ sp.objectif or '—' }}</div>
-    {% if not sp.objectif %}<div class="stat-sub"><a href="{{ url_for('sprints') }}">Définir l'objectif et la capacité</a></div>{% endif %}</div>
+    {% if not sp.objectif %}<div class="stat-sub"><a href="{{ url_for('planifier', sprint=n) }}">Définir l'objectif et la capacité</a></div>{% endif %}</div>
   <div class="stat-card"><div class="stat-label">Jour du sprint (simulé)</div>
     <div class="jour">
       {% if est_po %}<form method="post" action="{{ url_for('sprint_jour', n=n) }}"><input type="hidden" name="sens" value="-"><button title="Jour précédent" {% if bd.jour<=1 %}disabled{% endif %}>&#8249;</button></form>{% endif %}
@@ -144,7 +144,7 @@
   <div class="bd-note">En points, une story ne compte qu'une fois « Fait ». En heures, chaque tâche terminée fait baisser la courbe (passer une story en « Fait » solde ses tâches restantes). {% if dod_bloquante %}La DoD est bloquante : une story ne passe en « Fait » que si tous ses critères sont cochés.{% endif %}</div>
 </div>
 {% if not (colonnes.values()|map('length')|sum) %}
-<p class="muted small" style="margin-top:14px">Aucune story dans ce sprint. Affectez des stories au sprint {{ n }} depuis la <a href="{{ url_for('sprints') }}">planification</a> ou depuis la fiche story.</p>
+<p class="muted small" style="margin-top:14px">Aucune story dans ce sprint. <a href="{{ url_for('planifier', sprint=n) }}">Planifier le sprint {{ n }} &rarr;</a></p>
 {% endif %}
 {% endblock %}
 {% block scripts %}
