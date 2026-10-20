@@ -84,6 +84,7 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .cible{animation:cible 2.6s ease-out}
 @keyframes cible{0%,60%{box-shadow:0 0 0 3px var(--blue),0 0 0 8px rgba(37,99,235,.18)}100%{box-shadow:0 0 0 0 rgba(37,99,235,0)}}
 .parcours.ferme .parcours-steps,.parcours.ferme .parcours-next,.parcours.ferme .parcours-aide{display:none}
+.pstep{transition:transform .1s,box-shadow .1s}.pstep:hover{transform:translateY(-1px);box-shadow:0 2px 6px rgba(0,0,0,.12)}.parrow{font-weight:700;margin-left:2px}
 .parcours.ferme{padding:10px 18px}
 .nat-badge{--c:#64748b;display:inline-flex;align-items:center;padding:2px 8px;border-radius:99px;font-size:10.5px;font-weight:700;color:var(--c);background:color-mix(in srgb,var(--c) 11%,white);border:1px solid color-mix(in srgb,var(--c) 32%,white);white-space:nowrap;vertical-align:middle;line-height:1.4}
 .andon{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--red);box-shadow:0 0 0 3px rgba(220,38,38,.22);vertical-align:middle;animation:andon 1.6s ease-in-out infinite;flex:none}
@@ -224,12 +225,12 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
         <div class="parcours-head"><div class="card-title">Mise en route · étape {{ c.n }} sur {{ parcours.etapes|length }}</div>
           <button type="button" class="btn-link" id="parcours-toggle">Masquer</button></div>
         <div class="parcours-steps">
-          {% for e in parcours.etapes %}<a class="pstep {{ 'ok' if e.ok else ('cur' if e.n == c.n else '') }}" href="{{ e.lien }}"><b>{{ '✓' if e.ok else e.n }}</b>{{ e.nom }}{% if e.compte %}<span class="pcompte">{{ e.compte }}</span>{% endif %}</a>{% endfor %}
+          {% for e in parcours.etapes %}<a class="pstep {{ 'ok' if e.ok else ('cur' if e.n == c.n else '') }}" href="{{ e.lien }}"><b>{{ '✓' if e.ok else e.n }}</b>{{ e.nom }}{% if e.n == c.n %} <span class="parrow">&rarr;</span>{% endif %}{% if e.compte %}<span class="pcompte">{{ e.compte }}</span>{% endif %}</a>{% endfor %}
         </div>
-        <p class="parcours-aide">Une étape passe au vert quand elle est réalisée.</p>
+        <p class="parcours-aide">Cliquez sur une étape pour y aller ; elle passe au vert quand elle est réalisée.</p>
         <div class="parcours-next">
           <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}</div>
-          {% if est_po or not c.po %}<a class="btn btn-primary btn-sm" href="{{ c.lien }}">{{ c.bouton }} &rarr;</a>{% endif %}
+          
         </div>
       </div>
       {% endif %}
