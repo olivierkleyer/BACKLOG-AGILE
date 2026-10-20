@@ -179,6 +179,16 @@ tr.courant td{background:var(--blue-ll)}
   <p class="muted small">Toutes les stories sont planifiées.</p>
   {% endfor %}
 </div>
+{% if est_po %}
+<div class="card" id="repartir" style="border-color:#fca5a5">
+  <div class="card-title" style="color:var(--red)">Repartir de zéro</div>
+  <p class="small muted" style="margin-bottom:12px">Supprime les releases, features, stories, tâches, pièces jointes, revues et rétrospectives. Sont conservés : le calendrier des sprints, les critères de DoR et de DoD, les natures personnalisées, les prénoms et les mots de passe. Le fil conducteur repart à l'étape 1.</p>
+  <form method="post" action="{{ url_for('reset_all') }}" style="display:flex;gap:8px;max-width:420px" onsubmit="return confirm('Tout supprimer et repartir de zéro ?')">
+    <input type="hidden" name="retour" value="{{ url_for('sprints') }}">
+    <input type="text" name="confirmation" placeholder="Tapez VIDER" required>
+    <button class="btn btn-danger btn-sm">Repartir de zéro</button></form>
+</div>
+{% endif %}
 {% endblock %}
 {% block scripts %}
 {% if est_po %}

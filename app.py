@@ -1209,13 +1209,17 @@ def reset_passwords():
 def reset_all():
     if request.form.get('confirmation', '').strip().upper() != 'VIDER':
         flash('Tapez VIDER pour confirmer la réinitialisation', 'error')
-        return redirect(url_for('admin_users'))
+        return redirect(retour_ou(url_for('admin_users')))
     Retour.query.delete(); Revue.query.delete(); PostIt.query.delete(); ActionAmelioration.query.delete(); Retro.query.delete()
     PieceJointe.query.delete(); Tache.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     for s in Sprint.query.all(): s.objectif = ''; s.capacite = 0; s.jour_courant = 1
     db.session.commit()
-    flash('Backlog vidé : releases, features, stories et tâches supprimées', 'success')
-    return redirect(url_for('admin_users'))
+    flash('Backlog vidé : releases, features, stories, tâches, revues et rétros supprimées. Le calendrier, la DoR, la DoD et les comptes sont conservés : repartez de l\'étape 1.', 'success')
+    return redirect(retour_ou(url_for('admin_users')))
+
+def retour_ou(defaut):
+    r = request.form.get('retour', '')
+    return r if r.startswith('/') and not r.startswith('//') else defaut
 
 @app.route('/admin/exemple', methods=['POST'])
 @po_requis
