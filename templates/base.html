@@ -226,10 +226,9 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
         <div class="parcours-steps">
           {% for e in parcours.etapes %}<a class="pstep {{ 'ok' if e.ok else ('cur' if e.n == c.n else '') }}" href="{{ e.lien }}"><b>{{ '✓' if e.ok else e.n }}</b>{{ e.nom }}{% if e.compte %}<span class="pcompte">{{ e.compte }}</span>{% endif %}</a>{% endfor %}
         </div>
-        <p class="parcours-aide">Une étape passe au vert quand elle est réalisée ; cliquer sur une étape mène simplement à la page concernée.</p>
+        <p class="parcours-aide">Une étape passe au vert quand elle est réalisée.</p>
         <div class="parcours-next">
-          <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}
-            {% if c.condition %}<div class="pcond">{{ c.condition }}</div>{% endif %}</div>
+          <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}</div>
           {% if est_po or not c.po %}<a class="btn btn-primary btn-sm" href="{{ c.lien }}">{{ c.bouton }} &rarr;</a>{% endif %}
         </div>
       </div>

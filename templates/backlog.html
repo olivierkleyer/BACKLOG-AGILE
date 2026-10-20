@@ -36,14 +36,6 @@ td.us-id{border-left:4px solid var(--c,transparent)}
 </style>
 {% endblock %}
 {% block content %}
-<div class="stats-grid">
-  <div class="stat-card"><div class="stat-label">User stories</div><div class="stat-value">{{ stats.stories }}</div></div>
-  <div class="stat-card"><div class="stat-label">Points estimés</div><div class="stat-value">{{ stats.points|fmt }}</div>
-    <div class="stat-sub">{{ stats.fait|fmt }} pts terminés{% if stats.points %} ({{ (100*stats.fait/stats.points)|round|int }} %){% endif %}</div></div>
-  <div class="stat-card"><div class="stat-label">Non planifiées</div><div class="stat-value">{{ stats.non_planifiees }}</div><div class="stat-sub">sans sprint</div></div>
-  <div class="stat-card"><div class="stat-label">Non estimées</div><div class="stat-value">{{ stats.non_estimees }}</div><div class="stat-sub">0 point</div></div>
-</div>
-
 <form class="filtres no-print" method="get">
   <div class="field"><label>Release</label>
     <select name="release" onchange="this.form.submit()">

@@ -23,6 +23,10 @@ body{font-family:'DM Sans',sans-serif;background:#0f172a;min-height:100vh;displa
 .hint{background:#f1f5f9;border-radius:8px;padding:14px;margin-top:20px}
 .hint p{font-size:11px;color:#64748b;line-height:1.6}
 .hint strong{color:#334155}
+.pw-wrap{position:relative}
+.pw-wrap input{width:100%;padding-right:46px!important}
+.pw-eye{position:absolute;right:6px;top:50%;transform:translateY(-50%);border:0;background:transparent;font-size:18px;cursor:pointer;opacity:.45;padding:6px;line-height:1}
+.pw-eye.on{opacity:1}
 </style>
 </head>
 <body>
@@ -44,7 +48,8 @@ body{font-family:'DM Sans',sans-serif;background:#0f172a;min-height:100vh;displa
       </div>
       <div class="field">
         <label>Mot de passe</label>
-        <input type="password" name="password" required autocapitalize="none" autocorrect="off" />
+        <div class="pw-wrap"><input type="password" name="password" id="pw" required autocapitalize="none" autocorrect="off" />
+          <button type="button" class="pw-eye" id="pw-eye" aria-label="Afficher le mot de passe" title="Afficher le mot de passe">&#128065;</button></div>
       </div>
       <button type="submit" class="login-btn">Se connecter →</button>
     </form>
@@ -53,5 +58,14 @@ body{font-family:'DM Sans',sans-serif;background:#0f172a;min-height:100vh;displa
     </div>
   </div>
 </div>
+<script>
+document.getElementById('pw-eye').addEventListener('click', function(){
+  var i = document.getElementById('pw'), v = i.type === 'password';
+  i.type = v ? 'text' : 'password';
+  this.classList.toggle('on', v);
+  this.title = v ? 'Masquer le mot de passe' : 'Afficher le mot de passe';
+  this.setAttribute('aria-label', this.title); i.focus();
+});
+</script>
 </body>
 </html>

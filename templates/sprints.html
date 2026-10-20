@@ -42,7 +42,7 @@ tr.courant td{background:var(--blue-ll)}
 {% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. Seul le Product Owner peut modifier le calendrier, les releases, les objectifs et les capacités des sprints. Vous pouvez en revanche affecter les stories non planifiées à un sprint. Pour modifier, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
 {% block content %}
 {# ------------------------------------------------ Calendrier #}
-<div class="card">
+<div class="card" id="calendrier">
   <div class="card-title">Calendrier des sprints</div>
   {% if est_po %}
   <form class="cal-form" method="post">
@@ -70,7 +70,7 @@ tr.courant td{background:var(--blue-ll)}
   {% if est_po %}<p class="calc-note" style="margin-top:-6px">Le calendrier s'allonge automatiquement si les releases demandent plus de sprints (max {{ SPRINTS_MAX }}).</p>{% endif %}
 
   {% if sprints_releases > projet.nb_sprints %}
-  <div class="warn">Les releases couvrent <b>{{ sprints_releases }}</b> sprints mais le calendrier n'en compte que <b>{{ projet.nb_sprints }}</b>. Augmentez le <b>nombre de sprints</b> dans le bloc <a href="#">Calendrier des sprints</a> en haut de cette page, ou réduisez une release.</div>
+  <div class="warn">Les releases couvrent <b>{{ sprints_releases }}</b> sprints mais le calendrier n'en compte que <b>{{ projet.nb_sprints }}</b>. Augmentez le <b>nombre de sprints</b> dans le bloc <a href="#calendrier">Calendrier des sprints</a> en haut de cette page, ou réduisez une release.</div>
   {% endif %}
 
   {% if cal %}
@@ -124,13 +124,6 @@ tr.courant td{background:var(--blue-ll)}
 </div>
 
 {# ------------------------------------------------ Sprints #}
-<div class="stats-grid">
-  <div class="stat-card"><div class="stat-label">Vélocité moyenne</div><div class="stat-value">{{ velocite|fmt if velocite is not none else '—' }}</div>
-    <div class="stat-sub">{% if nb_termines %}pts / sprint sur {{ nb_termines }} sprint{{ 's' if nb_termines>1 }} terminé{{ 's' if nb_termines>1 }}{% else %}aucun sprint terminé{% endif %}</div></div>
-  <div class="stat-card"><div class="stat-label">Points planifiés</div><div class="stat-value">{{ sprints|sum(attribute='engage')|fmt }}</div></div>
-  <div class="stat-card"><div class="stat-label">Stories non planifiées</div><div class="stat-value">{{ non_planifiees|length }}</div></div>
-</div>
-
 <div class="card">
   <div class="card-title">Sprints · objectif et capacité</div>
   {% if est_po %}<p class="calc-note"><b>Objectif</b> et <b>capacité</b> : saisis par le PO. <b>Engagé</b>, <b>charge</b> et <b>terminé</b> : calculés automatiquement à partir des stories affectées au sprint et de leur statut.</p>{% endif %}
@@ -182,7 +175,7 @@ tr.courant td{background:var(--blue-ll)}
 {% if est_po %}
 <div class="card" id="repartir" style="border-color:#fca5a5">
   <div class="card-title" style="color:var(--red)">Repartir de zéro</div>
-  <p class="small muted" style="margin-bottom:12px">Supprime les releases, features, stories, tâches, pièces jointes, revues et rétrospectives. Sont conservés : le calendrier des sprints, les critères de DoR et de DoD, les natures personnalisées, les prénoms et les mots de passe. Le fil conducteur repart à l'étape 1.</p>
+  <p class="small muted" style="margin-bottom:12px">Supprime les releases, features, stories, tâches, pièces jointes, revues et rétrospectives. Sont conservés : le calendrier des sprints, les critères de DoR et de DoD, les natures personnalisées, les prénoms et les mots de passe. Le fil conducteur repart à l'étape 2 (Releases).</p>
   <form method="post" action="{{ url_for('reset_all') }}" style="display:flex;gap:8px;max-width:420px" onsubmit="return confirm('Tout supprimer et repartir de zéro ?')">
     <input type="hidden" name="retour" value="{{ url_for('sprints') }}">
     <input type="text" name="confirmation" placeholder="Tapez VIDER" required>

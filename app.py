@@ -130,6 +130,7 @@ class Projet(db.Model):
     dor_bloquante = db.Column(db.Boolean, default=True)    # une story n'entre dans un sprint que si elle est prete
     natures_perso_json = db.Column(db.Text, default='[]')  # natures de story ajoutees par le PO
     instance_id = db.Column(db.String(32), default='')     # change quand la base repart de zero
+    calendrier_valide = db.Column(db.Boolean, default=False)  # le PO a cliqué « Appliquer » sur le calendrier
 
     @property
     def dod_commune(self): return lire_json(self.dod_commune_json, [])
@@ -447,7 +448,7 @@ def contexte():
             'nat': lambda code: next((n for n in nats if n['code'] == code), nature_info(p, code))}
 
 def parcours(p):
-    """Fil conducteur : les 6 etapes du PO et de l'equipe, avec la prochaine action."""
+    """Fil conducteur : les 9 etapes du PO et de l'equipe, avec la prochaine action."""
     stories = Story.query.all()
     pretes = [s for s in stories if s.est_prete(p.dor_commune)]
     premiere = Feature.query.order_by(Feature.ordre, Feature.id).first()
@@ -457,36 +458,36 @@ def parcours(p):
     a_affiner = next((s for s in non_pretes if s.id != ouverte), None) or (non_pretes[0] if non_pretes else None)
     planifiees = [s for s in stories if s.sprint]
     etapes = [
-        {'n': 1, 'nom': 'Releases', 'ok': Release.query.count() > 0, 'po': True,
+        {'n': 1, 'nom': 'Calendrier des sprints', 'ok': bool(p.calendrier_valide), 'po': True,
+         'action': "Fixez la durée d'un sprint, le nombre de sprints et la date de début, puis cliquez sur « Appliquer ».",
+         'lien': url_for('sprints') + '#calendrier', 'bouton': 'Régler le calendrier'},
+        {'n': 2, 'nom': 'Releases', 'ok': Release.query.count() > 0, 'po': True,
          'action': 'Créez une release et indiquez son nombre de sprints.',
          'lien': url_for('sprints') + '#nouvelle-release', 'bouton': 'Créer une release'},
-        {'n': 2, 'nom': 'Features', 'ok': Feature.query.count() > 0, 'po': True,
+        {'n': 3, 'nom': 'Features', 'ok': Feature.query.count() > 0, 'po': True,
          'action': 'Créez une feature et rattachez-la à une release.',
          'lien': url_for('backlog') + '#nouvelle-feature', 'bouton': 'Créer une feature'},
-        {'n': 3, 'nom': 'Stories', 'ok': len(stories) > 0, 'po': True,
+        {'n': 4, 'nom': 'Stories', 'ok': len(stories) > 0, 'po': True,
          'compte': '{}'.format(len(stories)) if stories else '',
-         'condition': 'Passe au vert dès la première story créée.',
          'action': 'Ajoutez des stories dans une feature : choisissez leur nature (user story, story technique, bug…) et leur titre.',
          'lien': url_for('backlog') + ('#feature-{}'.format(premiere.id) if premiere else ''), 'bouton': 'Ajouter des stories'},
-        {'n': 4, 'nom': 'Estimer et rendre prêtes les stories', 'ok': len(pretes) > 0, 'po': False,
+        {'n': 5, 'nom': 'Estimer et rendre prêtes les stories', 'ok': len(pretes) > 0, 'po': False,
          'compte': '{}/{}'.format(len(pretes), len(stories)) if stories else '',
-         'condition': "{} story(s) prête(s) sur {}. Passe au vert dès qu'au moins une story est prête (estimée ET DoR complète) : inutile de toutes les préparer avant de planifier.".format(len(pretes), len(stories)),
          'action': "Ouvrez chaque story : estimez-la en points, rattachez-la si besoin à une story parente et cochez sa Definition of Ready.",
          'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'),
          'bouton': ('Story suivante à affiner : ' + a_affiner.numero()) if a_affiner else 'Ouvrir le backlog'},
-        {'n': 5, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
+        {'n': 6, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
          'compte': '{}/{}'.format(len(planifiees), len(pretes)) if pretes else '',
-         'condition': "{} story(s) planifiée(s) ; {} story(s) prête(s). Passe au vert dès qu'une story est affectée à un sprint.".format(len(planifiees), len(pretes)),
          'action': 'Affectez les stories prêtes à un sprint (liste « Affecter à… »).' if pretes else
-                   "Aucune story n'est encore prête : terminez d'abord l'étape 4 (estimation + DoR complète).",
+                   "Aucune story n'est encore prête : terminez d'abord l'étape 5 (estimation + DoR complète).",
          'lien': url_for('sprints') + '#non-planifiees', 'bouton': 'Planifier'},
-        {'n': 6, 'nom': 'Jouer le sprint', 'ok': any(s.statut != 'A faire' for s in stories if s.sprint), 'po': False,
+        {'n': 7, 'nom': 'Jouer le sprint', 'ok': any(s.statut != 'A faire' for s in stories if s.sprint), 'po': False,
          'action': 'Faites avancer les cartes sur le Kanban ; le PO avance le jour après chaque daily.',
          'lien': url_for('kanban'), 'bouton': 'Ouvrir le Kanban'},
-        {'n': 7, 'nom': 'Revue de sprint', 'ok': Revue.query.filter_by(cloturee=True).count() > 0, 'po': False,
+        {'n': 8, 'nom': 'Revue de sprint', 'ok': Revue.query.filter_by(cloturee=True).count() > 0, 'po': False,
          'action': 'En fin de sprint : démontrez les stories terminées, recueillez les retours clients, puis le PO clôture la revue.',
          'lien': url_for('revue'), 'bouton': 'Ouvrir la revue'},
-        {'n': 8, 'nom': 'Rétrospective', 'ok': Retro.query.filter_by(phase=len(PHASES_RETRO)).count() > 0, 'po': False,
+        {'n': 9, 'nom': 'Rétrospective', 'ok': Retro.query.filter_by(phase=len(PHASES_RETRO)).count() > 0, 'po': False,
          'action': "Le PO lance la rétro (étoile de mer, 4L ou speed boat) ; l'équipe colle ses post-its, vote et décide des actions d'amélioration.",
          'lien': url_for('retro'), 'bouton': 'Ouvrir la rétrospective'},
     ]
@@ -1047,6 +1048,7 @@ def sprints():
                 Story.query.filter(Story.sprint > nb).update({'sprint': 0})
                 flash('{} story(s) des sprints supprimés sont revenues dans le backlog non planifié'.format(orphelines), 'error')
             p.nb_sprints = nb
+            p.calendrier_valide = True
             p.duree_semaines = borne(fm.get('duree_semaines'), DUREE_MIN, DUREE_MAX, p.duree_semaines)
             try: p.date_debut = date.fromisoformat(fm.get('date_debut', '')).isoformat()
             except ValueError: pass
@@ -1214,7 +1216,7 @@ def reset_all():
     PieceJointe.query.delete(); Tache.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     for s in Sprint.query.all(): s.objectif = ''; s.capacite = 0; s.jour_courant = 1
     db.session.commit()
-    flash('Backlog vidé : releases, features, stories, tâches, revues et rétros supprimées. Le calendrier, la DoR, la DoD et les comptes sont conservés : repartez de l\'étape 1.', 'success')
+    flash('Backlog vidé : releases, features, stories, tâches, revues et rétros supprimées. Le calendrier, la DoR, la DoD et les comptes sont conservés : repartez de l\'étape 2 (Releases).', 'success')
     return redirect(retour_ou(url_for('admin_users')))
 
 def retour_ou(defaut):
@@ -1238,6 +1240,7 @@ def charger_exemple():
     p.date_debut = lundi.isoformat()
     p.dod_commune_json = json.dumps(ex.DOD_COMMUNE)
     p.dor_commune_json = json.dumps(ex.DOR_COMMUNE)
+    p.calendrier_valide = True
     db.session.commit()
     synchroniser_sprints(p.nb_sprints)
     for sp in Sprint.query.all():
