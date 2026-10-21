@@ -476,7 +476,7 @@ def parcours(p):
          'action': "Ouvrez une story : estimez-la en points et cochez ce qui est déjà vrai dans sa DoR. Inutile de tout compléter pour passer à la planification.",
          'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'),
          'bouton': ('Story suivante à affiner : ' + a_affiner.numero()) if a_affiner else 'Ouvrir le backlog'},
-        {'n': 6, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
+        {'n': 6, 'nom': 'Sprint planning', 'ok': any(s.sprint for s in stories), 'po': False,
          'compte': '{}'.format(len(planifiees)) if planifiees else '',
          'action': "Fixez l'objectif et la capacité du sprint, puis faites-y entrer les stories, par priorité, sans dépasser la capacité.",
          'lien': url_for('planifier'), 'bouton': 'Planifier'},
@@ -983,6 +983,15 @@ def tache_modifier(tid):
 @connecte
 def kanban():
     p = get_projet()
+    if request.args.get('vue') == 'globale':
+        prio_rang = {k: i for i, k in enumerate(PRIORITES)}
+        par_sprint = defaultdict(list)
+        for s in Story.query.all():
+            par_sprint[s.sprint].append(s)
+        for v in par_sprint.values():
+            v.sort(key=lambda s: (prio_rang.get(s.priorite, 9), s.ordre, s.id))
+        return render_template('globale.html', sprints=sprints_avec_release(p), par_sprint=par_sprint,
+                               aujourdhui=date.today())
     n = borne(request.args.get('sprint'), 1, p.nb_sprints, 1)
     sp = Sprint.query.filter_by(numero=n).first()
     stories = Story.query.filter_by(sprint=n).all()

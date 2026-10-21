@@ -69,6 +69,7 @@
 {% block content %}
 <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
 <div class="tabs">
+  <a class="tab" href="{{ url_for('kanban', vue='globale') }}" title="Tous les sprints sur un seul écran">&#9638; Vue globale</a>
   {% for r in sprints %}
   <a class="tab {% if r.sprint.numero==n %}active{% endif %}" href="{{ url_for('kanban', sprint=r.sprint.numero, dev=filtre_dev or None) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>
   {% endfor %}
@@ -144,7 +145,7 @@
   <div class="bd-note">En points, une story ne compte qu'une fois « Fait ». En heures, chaque tâche terminée fait baisser la courbe (passer une story en « Fait » solde ses tâches restantes). {% if dod_bloquante %}La DoD est bloquante : une story ne passe en « Fait » que si tous ses critères sont cochés.{% endif %}</div>
 </div>
 {% if not (colonnes.values()|map('length')|sum) %}
-<p class="muted small" style="margin-top:14px">Aucune story dans ce sprint. <a href="{{ url_for('planifier', sprint=n) }}">Planifier le sprint {{ n }} &rarr;</a></p>
+<p class="muted small" style="margin-top:14px">Aucune story dans ce sprint. <a href="{{ url_for('planifier', sprint=n) }}">Sprint planning du sprint {{ n }} &rarr;</a></p>
 {% endif %}
 {% endblock %}
 {% block scripts %}

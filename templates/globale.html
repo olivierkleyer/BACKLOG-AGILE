@@ -1,0 +1,54 @@
+{% extends 'base.html' %}
+{% block title %}Vue globale des sprints{% endblock %}
+{% block page_title %}Vue globale des sprints{% endblock %}
+{% block extra_css %}
+<style>
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tab{padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;color:var(--gray-700);background:white;border:1px solid var(--gray-200)}
+.tab:hover{border-color:var(--blue);color:var(--blue)}
+.tab.active{background:var(--navy);color:white;border-color:var(--navy)}
+.tab .cnt{font-weight:500;opacity:.6;margin-left:4px}
+.gl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:6px}
+.gl{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(150px,1fr);gap:0;min-width:min-content;background:#c7d7ee;border-radius:10px;padding:14px 10px}
+.gl-col{padding:0 5px}
+.chev{--c:#ed7d31;position:relative;background:var(--c);color:white;font-weight:800;font-size:15px;text-align:center;padding:10px 18px 10px 24px;clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%,14px 50%);text-decoration:none;display:block}
+.gl-col:first-child .chev{clip-path:polygon(0 0,calc(100% - 14px) 0,100% 50%,calc(100% - 14px) 100%,0 100%)}
+.chev small{display:block;font-size:10.5px;font-weight:600;opacity:.9}
+.chev.courant{outline:3px solid var(--navy);outline-offset:-3px}
+.gl-meta{font-size:11px;color:var(--gray-700);text-align:center;margin:6px 0 8px}
+.gl-meta .over{color:var(--red);font-weight:700}
+.postit{display:block;background:#fff36b;border-radius:3px;box-shadow:0 2px 4px rgba(0,0,0,.18);padding:6px 8px;margin-bottom:8px;text-decoration:none;color:#1f2937;border-top:4px solid var(--st,#9ca3af)}
+.postit:hover{transform:translateY(-1px);box-shadow:0 4px 8px rgba(0,0,0,.22)}
+.postit .num{font-family:var(--mono,monospace);font-size:10px;font-weight:700;color:var(--nc)}
+.postit .tit{font-size:12px;font-weight:600;line-height:1.3;margin-top:1px}
+.postit .bas{display:flex;justify-content:space-between;font-size:10px;color:#4b5563;margin-top:3px}
+.st-A-faire{--st:#9ca3af}.st-En-cours{--st:#2563eb}.st-Fait{--st:#16a34a}
+.postit.fait{opacity:.75}
+.gl-vide{font-size:11px;color:var(--gray-500);text-align:center;padding:10px 0}
+.legende{display:flex;gap:14px;flex-wrap:wrap;font-size:11.5px;color:var(--gray-700);margin:12px 0 0}
+.legende span::before{content:'';display:inline-block;width:14px;height:4px;margin-right:5px;vertical-align:middle;background:var(--st)}
+</style>
+{% endblock %}
+{% block content %}
+{% set couleurs = ['#ed7d31','#a5a5a5','#ffc000','#5b9bd5','#70ad47','#7c3aed','#db2777','#0d9488'] %}
+<div class="tabs">
+  <a class="tab active" href="{{ url_for('kanban', vue='globale') }}">&#9638; Vue globale</a>
+  {% for r in sprints %}<a class="tab" href="{{ url_for('kanban', sprint=r.sprint.numero) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>{% endfor %}
+</div>
+<div class="gl-wrap"><div class="gl">
+  {% for r in sprints %}{% set n = r.sprint.numero %}{% set courant = r.debut and r.debut <= aujourdhui <= r.fin %}
+  <div class="gl-col">
+    <a class="chev {{ 'courant' if courant }}" style="--c:{{ couleurs[(n-1) % couleurs|length] }}" href="{{ url_for('kanban', sprint=n) }}" title="Ouvrir le Kanban du sprint {{ n }}{% if r.release %} · {{ r.release.r.nom }}{% endif %}">Sprint {{ n }}<small>{% if r.debut %}{{ r.debut.strftime('%d/%m') }} → {{ r.fin.strftime('%d/%m') }}{% endif %}</small></a>
+    <div class="gl-meta">{{ r.nb }} stor{{ 'ies' if r.nb > 1 else 'y' }} · <span class="{{ 'over' if r.charge_pct and r.charge_pct > 100 }}">{{ r.engage|fmt }}{% if r.sprint.capacite %}/{{ r.sprint.capacite|fmt }}{% endif %} pts</span>{% if r.fait %} · {{ r.fait|fmt }} faits{% endif %}</div>
+    {% for s in par_sprint.get(n, []) %}
+    <a class="postit st-{{ s.statut|replace(' ','-') }} {{ 'fait' if s.statut=='Fait' }}" href="{{ url_for('story', sid=s.id) }}" title="{{ s.titre }} · {{ s.statut }}">
+      <div class="num" style="--nc:{{ nat(s.nature).couleur }}">{{ s.numero() }}{% if s.andon %} <span class="andon" style="width:8px;height:8px"></span>{% endif %}</div>
+      <div class="tit">{{ s.titre }}</div>
+      <div class="bas"><span>{{ s.points|fmt if s.points else '?' }} pts</span><span>{{ s.statut }}</span></div>
+    </a>
+    {% else %}<div class="gl-vide">Aucune story</div>{% endfor %}
+  </div>
+  {% endfor %}
+</div></div>
+<div class="legende"><span style="--st:#9ca3af">À faire</span><span style="--st:#2563eb">En cours</span><span style="--st:#16a34a">Fait</span><span style="--st:transparent">Cliquez sur un sprint pour ouvrir son Kanban, sur une story pour ouvrir sa fiche.</span></div>
+{% endblock %}

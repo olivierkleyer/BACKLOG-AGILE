@@ -209,7 +209,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
       <div class="sidebar-section-label">Produit</div>
       <a href="{{ url_for('sprints') }}" class="nav-item {% if request.endpoint=='sprints' %}active{% endif %}"><span class="nav-icon">&#128197;</span> 1 · Releases &amp; sprints</a>
       <a href="{{ url_for('backlog') }}" class="nav-item {% if request.endpoint in ('backlog','story') %}active{% endif %}"><span class="nav-icon">&#128203;</span> 2 · Product backlog</a>
-      <a href="{{ url_for('planifier') }}" class="nav-item {% if request.endpoint=='planifier' %}active{% endif %}"><span class="nav-icon">&#127919;</span> 3 · Planifier le sprint</a>
+      <a href="{{ url_for('planifier') }}" class="nav-item {% if request.endpoint=='planifier' %}active{% endif %}"><span class="nav-icon">&#127919;</span> 3 · Sprint planning</a>
       <a href="{{ url_for('kanban') }}" class="nav-item {% if request.endpoint=='kanban' %}active{% endif %}"><span class="nav-icon">&#128204;</span> 4 · Kanban du sprint</a>
       <a href="{{ url_for('revue') }}" class="nav-item {% if request.endpoint=='revue' %}active{% endif %}"><span class="nav-icon">&#127916;</span> 5 · Revue de sprint</a>
       <a href="{{ url_for('retro') }}" class="nav-item {% if request.endpoint=='retro' %}active{% endif %}"><span class="nav-icon">&#128260;</span> 6 · Rétrospective</a>

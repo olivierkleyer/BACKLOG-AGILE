@@ -1,6 +1,6 @@
 {% extends 'base.html' %}
-{% block title %}Planifier · Sprint {{ n }}{% endblock %}
-{% block page_title %}Planifier le sprint {{ n }}{% endblock %}
+{% block title %}Sprint planning · Sprint {{ n }}{% endblock %}
+{% block page_title %}Sprint planning · sprint {{ n }}{% endblock %}
 {% block topbar_actions %}
   {% if rel %}<span class="badge sp">{{ rel.r.nom }} · fin {{ rel.fin.strftime('%d/%m/%Y') if rel.fin else '—' }}</span>{% endif %}
   {% if debut %}<span class="small muted">du {{ debut.strftime('%d/%m/%Y') }} au {{ fin.strftime('%d/%m/%Y') }}</span>{% endif %}
