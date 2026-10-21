@@ -2,7 +2,7 @@
 {% from '_porteurs.html' import porteurs with context %}
 {% block title %}Product backlog{% endblock %}
 {% block page_title %}Product backlog{% endblock %}
-{% block topbar_actions %}{% if est_po %}<a class="btn btn-success btn-sm js-viser" href="#nouvelle-feature">+ Nouvelle feature</a>{% endif %}{% endblock %}
+{% block topbar_actions %}{% if est_po and (releases or stats.features) %}<a class="btn btn-success btn-sm js-viser" href="#nouvelle-feature">+ Nouvelle feature</a>{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
 .ajout-titre{font-size:12px;font-weight:700;color:var(--gray-500);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.5px}
@@ -38,6 +38,7 @@ td.us-id{border-left:4px solid var(--c,transparent)}
 </style>
 {% endblock %}
 {% block content %}
+{% if stats.stories %}
 <form class="filtres no-print" method="get">
   <div class="field"><label>Release</label>
     <select name="release" onchange="this.form.submit()">
@@ -68,11 +69,14 @@ td.us-id{border-left:4px solid var(--c,transparent)}
     </select></div>
   {% if filtre_sprint or filtre_statut or filtre_release or filtre_nature or filtre_dev %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
 </form>
+{% endif %}
 
 {% if not blocs %}
 <div class="card vide">
-  Le backlog est vide.
-  {% if est_po %}Commencez par créer une <strong>feature</strong> ci-dessous, puis ajoutez-lui des stories.{% else %}Le Product Owner n'a pas encore créé de feature.{% endif %}
+  {% if not releases and not stats.features %}
+  Le backlog se remplira à l'étape 3. D'abord : régler le calendrier et créer une release dans <a href="{{ url_for('sprints') }}">1 · Releases &amp; sprints</a>.
+  {% elif est_po %}Le backlog est vide. Créez une <strong>feature</strong> ci-dessous, puis ajoutez-lui des stories.
+  {% else %}Le backlog est vide : le Product Owner n'a pas encore créé de feature.{% endif %}
 </div>
 {% endif %}
 
@@ -145,7 +149,7 @@ td.us-id{border-left:4px solid var(--c,transparent)}
 </div>
 {% endfor %}
 
-{% if est_po %}
+{% if est_po and (releases or stats.features) %}
 <div class="card no-print" id="nouvelle-feature">
   <div class="card-title">Nouvelle feature</div>
   <form method="post" action="{{ url_for('feature_ajouter') }}" class="nf-form">

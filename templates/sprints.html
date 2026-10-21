@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 {% block title %}Releases &amp; sprints{% endblock %}
 {% block page_title %}Releases &amp; sprints{% endblock %}
-{% block topbar_actions %}{% if est_po %}<a class="btn btn-success btn-sm js-viser" href="#nouvelle-release">+ Nouvelle release</a>{% endif %}{% endblock %}
+{% block topbar_actions %}{% if est_po and cal %}<a class="btn btn-success btn-sm js-viser" href="#nouvelle-release">+ Nouvelle release</a>{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
 .ens-rel{margin-bottom:22px}
@@ -168,6 +168,7 @@ tr.courant td{background:var(--blue-ll)}
 </div>
 {% endif %}
 
+{% if cal %}
 {# ------------------------------------------------ Sprints #}
 <div class="card">
   <div class="card-title">Sprints</div>
@@ -190,7 +191,8 @@ tr.courant td{background:var(--blue-ll)}
     </tbody>
   </table>
 </div>
-{% if est_po %}
+{% endif %}
+{% if est_po and cal %}
 <div class="card" id="repartir" style="border-color:#fca5a5">
   <div class="card-title" style="color:var(--red)">Repartir de zéro</div>
   <p class="small muted" style="margin-bottom:12px">Supprime les releases, features, stories, tâches, pièces jointes, revues et rétrospectives. Sont conservés : le calendrier des sprints, les critères de DoR et de DoD, les natures personnalisées, les prénoms et les mots de passe. Le fil conducteur repart à l'étape 2 (Releases).</p>

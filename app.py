@@ -506,7 +506,7 @@ def login():
             session.permanent = True
             session['user_id'] = u.id; session['role'] = u.role; session['username'] = u.username
             session['instance'] = get_projet().instance_id
-            return redirect(url_for('backlog'))
+            return redirect(url_for('index'))
         d['count'] += 1
         if d['count'] >= 5:
             d['locked_until'] = datetime.utcnow() + timedelta(minutes=15); d['count'] = 0
@@ -519,7 +519,10 @@ def logout():
 
 @app.route('/')
 @connecte
-def index(): return redirect(url_for('backlog'))
+def index():
+    """Accueil : la page de l'etape en cours du fil conducteur, sinon le Kanban."""
+    c = parcours(get_projet())['courante']
+    return redirect(c['lien'] if c else url_for('kanban'))
 
 # ---------------------------------------------------------------- Calculs
 def dates_sprint(p, numero):
@@ -709,7 +712,7 @@ def backlog():
                       'points': sum(s.points or 0 for s in f.stories),
                       'fait': sum(s.points or 0 for s in f.stories if s.statut == 'Fait')})
     toutes = Story.query.all()
-    stats = {'stories': len(toutes),
+    stats = {'features': Feature.query.count(), 'stories': len(toutes),
              'points': sum(s.points or 0 for s in toutes),
              'fait': sum(s.points or 0 for s in toutes if s.statut == 'Fait'),
              'non_planifiees': sum(1 for s in toutes if not s.sprint),
