@@ -1098,7 +1098,7 @@ def release_ajouter():
         db.session.add(Release(nom=nom[:80], nb_sprints=borne(request.form.get('nb_sprints'), 1, SPRINTS_MAX, 1),
                                objectif=request.form.get('objectif', '').strip(), ordre=ordre))
         erreur = caler_calendrier(get_projet())
-        if erreur: flash(erreur, 'error')
+        flash(erreur or 'Release « {} » créée'.format(nom[:80]), 'error' if erreur else 'success')
     return redirect(url_for('sprints') + '#releases')
 
 @app.route('/release/<int:rid>/deplacer/<sens>', methods=['POST'])

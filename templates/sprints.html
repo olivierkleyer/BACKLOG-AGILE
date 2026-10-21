@@ -108,7 +108,7 @@ tr.courant td{background:var(--blue-ll)}
     {% endfor %}
     </tbody>
   </table>
-  {% if est_po %}<div style="margin-top:12px;text-align:right"><button class="btn btn-primary btn-sm" form="f-rel">Enregistrer les releases</button></div>{% endif %}
+  {% if est_po %}<div id="rel-save" hidden style="margin-top:12px;text-align:right"><span class="small muted" style="margin-right:8px">Modifications non enregistrées</span><button class="btn btn-primary btn-sm" form="f-rel">Enregistrer les modifications</button></div>{% endif %}
   {% else %}
   <p class="muted small" style="margin-bottom:12px">Aucune release. {% if est_po %}Créez-en une ci-dessous : elle occupera les premiers sprints du calendrier.{% endif %}</p>
   {% endif %}
@@ -159,6 +159,14 @@ tr.courant td{background:var(--blue-ll)}
 {% block scripts %}
 {% if est_po %}
 <script>
+// Le bouton d'enregistrement des releases n'apparait que si l'on modifie une release existante
+(function(){
+  var box=document.getElementById('rel-save'); if(!box) return;
+  document.querySelectorAll('[form="f-rel"]').forEach(function(el){
+    if(el.tagName==='BUTTON') return;
+    ['input','change'].forEach(function(ev){ el.addEventListener(ev,function(){ box.hidden=false; }); });
+  });
+})();
 // Fin du dernier sprint recalculee pendant la saisie (avant de cliquer sur Appliquer)
 (function(){
   var f=document.querySelector('.cal-form'), out=document.getElementById('cal-fin');
