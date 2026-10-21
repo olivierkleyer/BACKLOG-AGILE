@@ -136,7 +136,7 @@ td.us-id{border-left:4px solid var(--c,transparent)}
     </select>
     <input type="text" name="titre" placeholder="Nouvelle story : titre court…" required>
     <select name="priorite">{% for p in PRIORITES %}<option {% if p=='P2' %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
-    <button class="btn btn-primary btn-sm">+ Story</button>
+    <button class="btn btn-primary btn-sm">Créer la story</button>
   </form>
   {% endif %}
 </div>
@@ -153,7 +153,7 @@ td.us-id{border-left:4px solid var(--c,transparent)}
         {% for r in releases %}{% set c = cal_rel.get(r.id) %}<option value="{{ r.id }}" data-aide="Ses stories devront être planifiées dans les sprints S{{ c.s1 }} à S{{ c.s2 }}{% if c.fin %} (fin de la release le {{ c.fin.strftime('%d/%m/%Y') }}){% endif %}." {% if filtre_release==r.id|string or loop.first %}selected{% endif %}>{{ r.nom }} · S{{ c.s1 }}→S{{ c.s2 }}</option>{% endfor %}
         <option value="" data-aide="Sans release : ses stories pourront être planifiées dans n'importe quel sprint, sans date de fin de release." {% if filtre_release=='0' or not releases %}selected{% endif %}>Sans release</option>
       </select></div>
-    <button class="btn btn-success">+ Feature</button>
+    <button class="btn btn-success">Créer la feature</button>
   </form>
   <p class="nf-aide" id="nf-aide"></p>
 </div>

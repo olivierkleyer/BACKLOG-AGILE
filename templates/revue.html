@@ -85,7 +85,7 @@
   <form method="post" action="{{ url_for('revue_retour', n=n) }}" class="ajout-retour">
     <textarea name="texte" rows="2" placeholder="Retour d'un client ou d'une partie prenante (ex : « la carte doit aussi montrer le niveau de batterie »)" required></textarea>
     <select name="story_id"><option value="">Story concernée (facultatif)</option>{% for s in stories_sprint %}<option value="{{ s.id }}">{{ s.numero() }} · {{ s.titre }}</option>{% endfor %}</select>
-    <button class="btn btn-primary btn-sm">+ Retour</button>
+    <button class="btn btn-primary btn-sm">Enregistrer le retour</button>
   </form>
   <div style="height:14px"></div>
   {% endif %}

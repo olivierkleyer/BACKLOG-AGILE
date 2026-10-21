@@ -261,7 +261,7 @@
         <td class="c"><input form="ft-new" class="h" type="number" name="heures" min="0" step="0.5" placeholder="h"></td>
         <td class="c"><select form="ft-new" class="r" name="responsable"><option value="">Resp.</option>{% for x in PERSONNES %}<option value="{{ x.id }}">{{ x.court }}</option>{% endfor %}</select></td>
         <td></td>
-        <td class="c"><button form="ft-new" class="btn btn-success btn-sm">+ Tâche</button></td>
+        <td class="c"><button form="ft-new" class="btn btn-success btn-sm">Créer la tâche</button></td>
       </tr>
     </tbody>
     {% if s.taches %}
@@ -286,7 +286,7 @@
   {% endif %}
   <form class="pj-form" method="post" action="{{ url_for('pj_ajouter', sid=s.id) }}" enctype="multipart/form-data">
     <input type="file" name="fichier" required>
-    <button class="btn btn-ghost btn-sm">+ Ajouter</button>
+    <button class="btn btn-ghost btn-sm">Joindre le fichier</button>
   </form>
 </div>
 {% endblock %}

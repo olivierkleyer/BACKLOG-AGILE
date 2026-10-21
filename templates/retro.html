@@ -159,7 +159,7 @@
     {% if r.phase <= 1 %}
     <form class="add-postit" method="post" action="{{ url_for('retro_postit', n=n) }}"><input type="hidden" name="zone" value="{{ code }}">
       <textarea name="texte" placeholder="Nouveau post-it…" required maxlength="300"></textarea>
-      <button class="btn btn-ghost btn-sm">+ Post-it</button></form>
+      <button class="btn btn-ghost btn-sm">Coller le post-it</button></form>
     {% endif %}
   </div>
   {% endfor %}
@@ -173,7 +173,7 @@
     <input type="text" name="texte" id="act-texte" placeholder="Action concrète (ex : faire relire chaque story par un pair avant le sprint planning)" required maxlength="300">
     <select name="porteur"><option value="">Porteur…</option>{% for x in PERSONNES %}<option value="{{ x.id }}">{{ x.court }}</option>{% endfor %}</select>
     <select name="sprint_cible">{% for x in sprints %}<option value="{{ x.sprint.numero }}" {% if x.sprint.numero == n + 1 %}selected{% endif %}>Sprint {{ x.sprint.numero }}</option>{% endfor %}</select>
-    <button class="btn btn-success btn-sm">+ Action</button>
+    <button class="btn btn-success btn-sm">Ajouter l'action</button>
   </form>
   {% endif %}
   {% for a in r.actions %}
