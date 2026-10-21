@@ -735,10 +735,10 @@ def feature_ajouter():
         db.session.add(f); db.session.commit()
         c = next((c for c in calendrier_releases(get_projet()) if c['r'].id == f.release_id), None)
         if c:
-            flash('Feature « {} » créée dans la release « {} » (sprints S{} à S{}). Ajoutez-lui maintenant ses user stories.'.format(
+            flash('Feature « {} » créée dans la release « {} » (sprints S{} à S{}). Ajoutez-lui maintenant ses stories ; pour une autre feature : bouton « + Nouvelle feature » en haut.'.format(
                 f.nom, c['r'].nom, c['s1'], c['s2']), 'success')
         else:
-            flash('Feature « {} » créée, sans release. Ajoutez-lui maintenant ses user stories.'.format(f.nom), 'success')
+            flash('Feature « {} » créée, sans release. Ajoutez-lui maintenant ses stories ; pour une autre feature : bouton « + Nouvelle feature » en haut.'.format(f.nom), 'success')
         return redirect(url_for('backlog') + '#feature-{}'.format(f.id))
     return redirect(url_for('backlog'))
 
@@ -787,7 +787,9 @@ def story_ajouter():
     s = Story(feature_id=f.id, titre=titre[:200], nature=nature,
               priorite=request.form.get('priorite') if request.form.get('priorite') in PRIORITES else 'P2')
     db.session.add(s); db.session.commit()
-    return redirect(url_for('story', sid=s.id))
+    session['derniere_nature'] = nature
+    flash('Story {} « {} » créée. Saisissez la suivante ci-dessous, ou cliquez sur son titre pour ouvrir sa fiche.'.format(s.numero(), s.titre), 'success')
+    return redirect(url_for('backlog') + '#feature-{}'.format(f.id))
 
 # ---------------------------------------------------------------- Fiche story
 @app.route('/story/<int:sid>', methods=['GET', 'POST'])
@@ -1083,7 +1085,15 @@ def sprints():
     np = sorted(Story.query.filter_by(sprint=0).all(), key=lambda s: (prio_rang.get(s.priorite, 9), s.feature.ordre, s.id))
     cal = calendrier_releases(p)
     for r in rs: r['release'] = release_du_sprint(cal, r['sprint'].numero)
-    return render_template('sprints.html', sprints=rs, non_planifiees=np, velocite=velocite, dor_commune=p.dor_commune,
+    feats = Feature.query.order_by(Feature.ordre, Feature.id).all()
+    def bloc(fs):
+        fs = [{'f': f, 'stories': sorted(f.stories, key=lambda s: (s.ordre, s.id))} for f in fs]
+        st = [s for x in fs for s in x['stories']]
+        return {'features': fs, 'nb_stories': len(st), 'points': sum(s.points or 0 for s in st)}
+    ensemble = [dict(bloc([f for f in feats if f.release_id == c['r'].id]), cal=c) for c in cal]
+    sans = [f for f in feats if not f.release_id]
+    if sans: ensemble.append(dict(bloc(sans), cal=None))
+    return render_template('sprints.html', ensemble=ensemble, sprints=rs, non_planifiees=np, velocite=velocite, dor_commune=p.dor_commune,
                            dor_bloquante=p.dor_bloquante,
                            nb_termines=len(termines), aujourdhui=date.today(), cal=cal,
                            sprints_releases=sum(c['r'].nb_sprints for c in cal),

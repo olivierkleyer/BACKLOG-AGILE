@@ -292,7 +292,7 @@ var etapeAvancee=(function(){
   return true;
 })();
 if(location.hash && !etapeAvancee) viser(location.hash.slice(1));
-document.querySelectorAll('.parcours-next a, .pstep').forEach(function(a){
+document.querySelectorAll('.parcours-next a, .pstep, a.js-viser').forEach(function(a){
   a.addEventListener('click',function(e){
     var u=new URL(a.href, location.href);
     if(u.pathname===location.pathname && u.hash && viser(u.hash.slice(1))){ e.preventDefault(); history.replaceState(null,'',u.hash); }

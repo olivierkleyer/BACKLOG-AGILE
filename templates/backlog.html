@@ -2,8 +2,10 @@
 {% from '_porteurs.html' import porteurs with context %}
 {% block title %}Product backlog{% endblock %}
 {% block page_title %}Product backlog{% endblock %}
+{% block topbar_actions %}{% if est_po %}<a class="btn btn-success btn-sm js-viser" href="#nouvelle-feature">+ Nouvelle feature</a>{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
+.ajout-titre{font-size:12px;font-weight:700;color:var(--gray-500);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.5px}
 .filtres{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
 .filtres .field{margin:0;min-width:160px}
 .feat-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
@@ -128,11 +130,12 @@ td.us-id{border-left:4px solid var(--c,transparent)}
   {% endif %}
 
   {% if est_po %}
+  <div class="ajout-titre no-print">+ Ajouter une story à « {{ b.f.nom }} »</div>
   <form class="ajout-story no-print" method="post" action="{{ url_for('story_ajouter') }}">
     <input type="hidden" name="feature_id" value="{{ b.f.id }}">
     <select name="nature" class="nat-sel" required title="Nature de la story">
-      <option value="" selected disabled>Nature…</option>
-      {% for n in NATURES %}<option value="{{ n.code }}">{{ n.nom }}</option>{% endfor %}
+      <option value="" disabled {% if not session.derniere_nature %}selected{% endif %}>Nature…</option>
+      {% for n in NATURES %}<option value="{{ n.code }}" {% if session.derniere_nature==n.code %}selected{% endif %}>{{ n.nom }}</option>{% endfor %}
     </select>
     <input type="text" name="titre" placeholder="Nouvelle story : titre court…" required>
     <select name="priorite">{% for p in PRIORITES %}<option {% if p=='P2' %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>

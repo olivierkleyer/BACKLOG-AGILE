@@ -1,8 +1,22 @@
 {% extends 'base.html' %}
 {% block title %}Releases &amp; sprints{% endblock %}
 {% block page_title %}Releases &amp; sprints{% endblock %}
+{% block topbar_actions %}{% if est_po %}<a class="btn btn-success btn-sm js-viser" href="#nouvelle-release">+ Nouvelle release</a>{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
+.ens-rel{margin-bottom:22px}
+.ens-rel:last-child{margin-bottom:0}
+.ens-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;color:white;border-radius:8px;padding:10px 16px;font-weight:700}
+.ens-bar small{font-weight:500;opacity:.85}
+.ens-bar.sans{background:var(--gray-500)}
+.ens-feats{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:12px;margin-top:12px}
+.ens-feat{border:2px solid #70ad47;border-radius:8px;padding:10px}
+.ens-feat-nom{font-weight:700;font-size:13px;color:var(--navy);text-decoration:none;display:block}
+.ens-feat-nb{font-size:11px;color:var(--gray-500);margin:2px 0 8px}
+.ens-stories{display:flex;flex-wrap:wrap;gap:5px}
+.ens-st{--c:#64748b;font-size:10.5px;font-family:var(--mono,monospace);font-weight:700;padding:3px 6px;border:1.5px solid var(--c);color:var(--c);border-radius:4px;text-decoration:none;background:white}
+.ens-st:hover{background:var(--c);color:white}
+.ens-vide{font-size:12px;color:var(--gray-500)}
 .cal-form{display:grid;grid-template-columns:repeat(3,minmax(0,200px)) auto;gap:14px;align-items:start}
 .cal-form>.btn{margin-top:19px}
 .cal-fin{font-size:12px;color:var(--gray-700);margin-top:2px}
@@ -122,6 +136,33 @@ tr.courant td{background:var(--blue-ll)}
   </form>
   {% endif %}
 </div>
+
+{# ------------------------------------------------ Vue d'ensemble #}
+{% if ensemble %}
+<div class="card" id="ensemble">
+  <div class="card-title">Vue d'ensemble · releases, features et stories</div>
+  {% for e in ensemble %}
+  <div class="ens-rel">
+    {% if e.cal %}<div class="ens-bar rc{{ e.cal.i % 6 }}"><span>{{ e.cal.r.nom }} <small>· S{{ e.cal.s1 }}{% if e.cal.s2 > e.cal.s1 %}→S{{ e.cal.s2 }}{% endif %}</small></span>
+    {% else %}<div class="ens-bar sans"><span>Sans release</span>{% endif %}
+      <small>{{ e.features|length }} feature{{ 's' if e.features|length > 1 }} · {{ e.nb_stories }} stor{{ 'ies' if e.nb_stories > 1 else 'y' }} · {{ e.points|fmt }} pts</small></div>
+    {% if e.features %}
+    <div class="ens-feats">
+      {% for x in e.features %}
+      <div class="ens-feat">
+        <a class="ens-feat-nom" href="{{ url_for('backlog') }}#feature-{{ x.f.id }}">{{ x.f.nom }}</a>
+        <div class="ens-feat-nb">{{ x.stories|length }} stor{{ 'ies' if x.stories|length > 1 else 'y' }}</div>
+        <div class="ens-stories">
+          {% for st in x.stories %}<a class="ens-st" style="--c:{{ nat(st.nature).couleur }}" href="{{ url_for('story', sid=st.id) }}" title="{{ nat(st.nature).nom }} · {{ st.titre }}">{{ st.numero() }}</a>{% else %}<span class="ens-vide">aucune story</span>{% endfor %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}<p class="ens-vide" style="margin-top:8px">Aucune feature rattachée{% if est_po %} : <a href="{{ url_for('backlog') }}#nouvelle-feature">créer une feature</a>{% endif %}.</p>{% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endif %}
 
 {# ------------------------------------------------ Sprints #}
 <div class="card">

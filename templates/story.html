@@ -5,6 +5,7 @@
 {% block page_title %}<span class="nat-badge" style="--c:{{ N.couleur }}">{{ N.nom }}</span> <span class="mono muted" style="font-size:13px">{{ s.numero() }}</span> &nbsp;{{ s.titre }}{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% endblock %}
 {% block topbar_actions %}
   <a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">&#8592; Backlog</a>
+  {% if est_po %}<a class="btn btn-success btn-sm" href="{{ url_for('backlog') }}#feature-{{ s.feature_id }}" title="Ajouter une autre story à la feature « {{ s.feature.nom }} »">+ Nouvelle story</a>{% endif %}
   {% if prec %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=prec) }}" title="Story précédente">&#8249;</a>{% endif %}
   {% if suiv %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=suiv) }}" title="Story suivante">&#8250;</a>{% endif %}
   <button class="btn btn-primary btn-sm" form="fiche">Enregistrer</button>
