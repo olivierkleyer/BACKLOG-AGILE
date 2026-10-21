@@ -8,10 +8,11 @@
   {% if est_po %}<a class="btn btn-success btn-sm" href="{{ url_for('backlog') }}#feature-{{ s.feature_id }}" title="Ajouter une autre story à la feature « {{ s.feature.nom }} »">+ Nouvelle story</a>{% endif %}
   {% if prec %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=prec) }}" title="Story précédente">&#8249;</a>{% endif %}
   {% if suiv %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=suiv) }}" title="Story suivante">&#8250;</a>{% endif %}
-  <button class="btn btn-primary btn-sm" form="fiche">Enregistrer</button>
 {% endblock %}
 {% block extra_css %}
 <style>
+.barre-save{position:sticky;bottom:0;z-index:40;grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:12px;background:rgba(255,255,255,.96);border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:0 -4px 14px rgba(0,0,0,.06);padding:10px 16px;margin-top:4px}
+@media(max-width:768px){.barre-save span{display:none}.barre-save .btn{width:100%;justify-content:center}}
 .fiche{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
 .us-format .field label{color:var(--blue)}
 .us-format textarea{min-height:52px}
@@ -172,9 +173,13 @@
       </ul>
     </div>
 
-    <div class="card">
+    <div class="card repliable {{ 'replie' if not s.sprint }}" id="dod-bloc">
+      <div class="repli-tete"><div class="card-title">Définition du Fini</div>
+        <span class="repli-resume">{{ dod[0] }}/{{ dod[1] }} · à cocher pendant le sprint</span>
+        <button type="button" class="btn-link repli-btn">Afficher</button></div>
+      <div class="corps">
       <div class="card-title" style="display:flex;justify-content:space-between">
-        <span>Définition du Fini</span>
+        <span></span>
         <span style="display:flex;gap:10px;align-items:center">{% if est_po %}<button type="button" class="btn-crit" data-cible="edit-dod">&#9998; Modifier les critères communs</button>{% endif %}
         <span class="dod-score" style="color:{{ 'var(--green)' if dod[1] and dod[0]==dod[1] else 'var(--gray-500)' }}">{{ dod[0] }} / {{ dod[1] }}</span></span>
       </div>
@@ -204,6 +209,7 @@
         {% endfor %}
         <li><span style="width:17px;text-align:center;color:var(--gray-500)">+</span><input type="text" name="dod_nouveau" placeholder="Ajouter un critère spécifique (ex : testé sur parcelle en pente)"></li>
       </ul>
+      </div>
     </div>
   </div>
 
@@ -216,10 +222,11 @@
         <select name="priorite" {% if not est_po %}disabled{% endif %}>{% for p in PRIORITES %}<option {% if p==s.priorite %}selected{% endif %}>{{ p }}</option>{% endfor %}</select></div>
       <div class="field"><label>Estimation (points)</label><input type="number" name="points" min="0" step="0.5" value="{{ s.points|fmt }}"></div>
       <div class="field"><label>Sprint</label>
-        <div class="sprint-info">{% if s.sprint %}<b>Sprint {{ s.sprint }}</b>{% if cal and cal.s1 <= s.sprint <= cal.s2 %} · {{ cal.r.nom }}{% endif %}{% else %}Non planifiée{% endif %}
-          · <a href="{{ url_for('planifier', sprint=s.sprint or None) }}">Planifier &rarr;</a></div>
+        <select name="sprint">
+          <option value="0">Non planifiée</option>
+          {% for r in sprints_info %}<option value="{{ r.sprint.numero }}" {% if s.sprint==r.sprint.numero %}selected{% endif %}>Sprint {{ r.sprint.numero }}{% if r.release %} · {{ r.release.r.nom }}{% endif %}{% if r.sprint.capacite %} ({{ r.engage|fmt }}/{{ r.sprint.capacite|fmt }} pts){% endif %}</option>{% endfor %}
+        </select>
         {% if s.est_prete(dor_commune) %}<span class="pret oui">Prête pour un sprint</span>{% else %}<span class="pret non">Pas prête : {{ s.manque_pour_etre_prete(dor_commune) }}</span>{% endif %}</div>
-      <button class="btn btn-primary" style="width:100%;justify-content:center">Enregistrer la story</button>
     </div>
     <div class="card andon-card {{ 'on' if s.andon }}" id="andon-card">
       <label class="chk"><input type="checkbox" name="andon" id="andon" {% if s.andon %}checked{% endif %}><span class="andon"></span> Andon : signaler un problème</label>
@@ -235,13 +242,17 @@
       {% endif %}
     </div>
   </div>
+  <div class="barre-save"><span class="small muted">Les modifications de la fiche s'enregistrent avec ce bouton.</span><button class="btn btn-primary">Enregistrer la story</button></div>
 </form>
 {% if est_po %}
 <form id="suppr" method="post" action="{{ url_for('story_supprimer', sid=s.id) }}" onsubmit="return confirm('Supprimer définitivement cette story, ses tâches et ses pièces jointes ?')"></form>
 {% endif %}
 
-<div class="card taches" id="taches">
-  <div class="card-title">Tâches de la story</div>
+<div class="card taches repliable {{ 'replie' if not s.sprint and not s.taches }}" id="taches">
+  <div class="repli-tete"><div class="card-title">Tâches de la story</div>
+    <span class="repli-resume">{{ s.taches|length }} tâche(s) · découpage à faire en début de sprint</span>
+    <button type="button" class="btn-link repli-btn">Afficher</button></div>
+  <div class="corps">
   <p class="aide">Pendant le sprint : le découpage du travail, chiffré en heures (burndown en heures).</p>
   <table class="data-table cards-mobile">
     <thead><tr><th>Tâche</th><th class="c">Heures</th><th class="c">Resp.</th><th class="c">Statut</th><th></th></tr></thead>
@@ -269,10 +280,14 @@
   </table>
   {% for t in s.taches %}<form id="ft{{ t.id }}" method="post" action="{{ url_for('tache_modifier', tid=t.id) }}"></form>{% endfor %}
   <form id="ft-new" method="post" action="{{ url_for('tache_ajouter', sid=s.id) }}"></form>
+  </div>
 </div>
 
-<div class="card" id="pj">
-  <div class="card-title">Pièces jointes</div>
+<div class="card repliable {{ 'replie' if not s.pieces }}" id="pj">
+  <div class="repli-tete"><div class="card-title">Pièces jointes</div>
+    <span class="repli-resume">{{ s.pieces|length }} fichier(s)</span>
+    <button type="button" class="btn-link repli-btn">Afficher</button></div>
+  <div class="corps">
   <p class="aide">Maquette, capture d'écran, spécification… 5 Mo maximum par fichier. Comme le reste des données, elles ne sont conservées que pendant la séance.</p>
   {% if s.pieces %}
   <ul class="pj-list">
@@ -287,6 +302,7 @@
     <input type="file" name="fichier" required>
     <button class="btn btn-ghost btn-sm">Joindre le fichier</button>
   </form>
+  </div>
 </div>
 {% endblock %}
 {% block scripts %}

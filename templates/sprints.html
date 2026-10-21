@@ -58,9 +58,13 @@ tr.courant td{background:var(--blue-ll)}
 {% endblock %}
 {% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. Seul le Product Owner peut modifier le calendrier et les releases. Pour modifier, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
 {% block content %}
+{% set etape = parcours.courante.n if parcours.courante else 99 %}
 {# ------------------------------------------------ Calendrier #}
-<div class="card" id="calendrier">
-  <div class="card-title">Calendrier des sprints</div>
+<div class="card repliable {{ 'replie' if etape > 1 }}" id="calendrier">
+  <div class="repli-tete"><div class="card-title">Calendrier des sprints</div>
+    <span class="repli-resume">{{ projet.nb_sprints }} sprints de {{ projet.duree_semaines }} semaine{{ 's' if projet.duree_semaines > 1 }}{% if sprints and sprints[0].debut %} · du {{ sprints[0].debut.strftime('%d/%m/%Y') }} au {{ sprints[-1].fin.strftime('%d/%m/%Y') }}{% endif %}</span>
+    <button type="button" class="btn-link repli-btn">{{ 'Modifier' if est_po else 'Afficher' }}</button></div>
+  <div class="corps">
   {% if est_po %}
   <form class="cal-form" method="post">
     <input type="hidden" name="section" value="calendrier">
@@ -79,11 +83,15 @@ tr.courant td{background:var(--blue-ll)}
     <span>Fin : <b>{{ sprints[-1].fin.strftime('%d/%m/%Y') if sprints and sprints[-1].fin else '—' }}</b></span>
   </div>
   {% endif %}
+  </div>
 </div>
 
 {# ------------------------------------------------ Releases #}
-<div class="card" id="releases">
-  <div class="card-title">Releases · chaque release enchaîne un nombre de sprints</div>
+<div class="card repliable {{ 'replie' if etape > 2 and cal and not sprints_releases > projet.nb_sprints }}" id="releases">
+  <div class="repli-tete"><div class="card-title">Releases · chaque release enchaîne un nombre de sprints</div>
+    <span class="repli-resume">{% for c in cal %}{{ c.r.nom }} (S{{ c.s1 }}{% if c.s2 > c.s1 %}→S{{ c.s2 }}{% endif %}){{ ' · ' if not loop.last }}{% endfor %}</span>
+    <button type="button" class="btn-link repli-btn">{{ 'Modifier' if est_po else 'Afficher' }}</button></div>
+  <div class="corps">
   {% if est_po %}<p class="calc-note" style="margin-top:-6px">Le calendrier s'allonge automatiquement si les releases demandent plus de sprints (max {{ SPRINTS_MAX }}).</p>{% endif %}
 
   {% if sprints_releases > projet.nb_sprints %}
@@ -132,16 +140,17 @@ tr.courant td{background:var(--blue-ll)}
 
   {% if est_po %}
   <form id="nouvelle-release" method="post" action="{{ url_for('release_ajouter') }}" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-100)">
-    <input type="text" name="nom" placeholder="Nouvelle release (ex : R1 – MVP)" required style="flex:1;min-width:180px">
-    <input type="number" name="nb_sprints" min="1" max="{{ SPRINTS_MAX }}" value="2" style="width:90px" title="Nombre de sprints">
-    <input type="text" name="objectif" placeholder="Objectif (facultatif)" style="flex:2;min-width:200px">
-    <button class="btn btn-success">Créer la release</button>
+    <div class="field" style="flex:1;min-width:180px;margin:0"><label>Nom de la release</label><input type="text" name="nom" placeholder="ex : R1 – MVP" required></div>
+    <div class="field" style="width:130px;margin:0"><label>Nombre de sprints</label><input type="number" name="nb_sprints" min="1" max="{{ SPRINTS_MAX }}" value="2"></div>
+    <div class="field" style="flex:2;min-width:200px;margin:0"><label>Objectif (facultatif)</label><input type="text" name="objectif" placeholder="ex : un robot récolte seul une parcelle"></div>
+    <button class="btn btn-success" style="align-self:flex-end">Créer la release</button>
   </form>
   {% endif %}
+  </div>
 </div>
 
 {# ------------------------------------------------ Vue d'ensemble #}
-{% if ensemble %}
+{% if ensemble and ensemble|sum(attribute='nb_stories') %}
 <div class="card" id="ensemble">
   <div class="card-title">Vue d'ensemble · releases, features et stories</div>
   <p class="ens-legende">Chaque étiquette est une story (couleur = nature) ; le petit chiffre = son nombre de tâches. Cliquez pour ouvrir la fiche.</p>
@@ -170,8 +179,11 @@ tr.courant td{background:var(--blue-ll)}
 
 {% if cal %}
 {# ------------------------------------------------ Sprints #}
-<div class="card">
-  <div class="card-title">Sprints</div>
+<div class="card repliable replie">
+  <div class="repli-tete"><div class="card-title">Sprints</div>
+    <span class="repli-resume">{{ sprints|length }} sprints · dates, objectifs, capacités et points engagés</span>
+    <button type="button" class="btn-link repli-btn">Afficher</button></div>
+  <div class="corps">
   <p class="calc-note">L'objectif, la capacité et le contenu de chaque sprint se fixent dans <a href="{{ url_for('planifier') }}">3 · Planifier le sprint</a>.</p>
   <table class="data-table cards-mobile">
     <thead><tr><th>Sprint</th><th>Release</th><th>Dates</th><th>Objectif du sprint</th><th class="c">Capacité</th><th class="c">Engagé</th><th class="c">Terminé</th><th></th></tr></thead>
@@ -190,16 +202,21 @@ tr.courant td{background:var(--blue-ll)}
     {% endfor %}
     </tbody>
   </table>
+  </div>
 </div>
 {% endif %}
 {% if est_po and cal %}
-<div class="card" id="repartir" style="border-color:#fca5a5">
-  <div class="card-title" style="color:var(--red)">Repartir de zéro</div>
+<div class="card repliable replie" id="repartir" style="border-color:#fca5a5">
+  <div class="repli-tete"><div class="card-title" style="color:var(--red)">Repartir de zéro</div>
+    <span class="repli-resume">vider le backlog pour recommencer l'exercice</span>
+    <button type="button" class="btn-link repli-btn">Afficher</button></div>
+  <div class="corps">
   <p class="small muted" style="margin-bottom:12px">Supprime les releases, features, stories, tâches, pièces jointes, revues et rétrospectives. Sont conservés : le calendrier des sprints, les critères de DoR et de DoD, les natures personnalisées, les prénoms et les mots de passe. Le fil conducteur repart à l'étape 2 (Releases).</p>
   <form method="post" action="{{ url_for('reset_all') }}" style="display:flex;gap:8px;max-width:420px">
     <input type="hidden" name="retour" value="{{ url_for('sprints') }}">
     <input type="text" name="confirmation" placeholder="Tapez VIDER" required>
     <button class="btn btn-danger btn-sm">Repartir de zéro</button></form>
+  </div>
 </div>
 {% endif %}
 {% endblock %}

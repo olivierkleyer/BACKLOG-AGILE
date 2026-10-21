@@ -841,7 +841,7 @@ def story(sid):
                     nouv = [l.strip()[:200] for l in fm.get(champ, '').splitlines() if l.strip()]
                     if nouv != lire_json(getattr(p, attr), []):
                         setattr(p, attr, json.dumps(nouv)); maj_criteres.append(nom)
-        erreur_dor = None   # l'affectation a un sprint se fait uniquement sur la page Planifier le sprint
+        erreur_dor = affecter_sprint(s, borne(fm.get('sprint'), 0, p.nb_sprints, s.sprint), p)
         # DoD specifique : libelles + cases
         s.dod_json = json.dumps(liste_criteres(fm, 'dod'))
         erreur = changer_statut_story(s, fm.get('statut'), p)
@@ -867,6 +867,7 @@ def story(sid):
     enfants_ouverts = [e for e in s.enfants if e.statut != 'Fait']
     return render_template('story.html', s=s, dod_commune=p.dod_commune, prec=prec, suiv=suiv, cal=cal,
                            parents=parents_possibles(s), autorises=parents_autorises(s.nature),
+                           sprints_info=sprints_avec_release(p),
                            enfants_ouverts=enfants_ouverts,
                            features=Feature.query.order_by(Feature.ordre, Feature.id).all(),
                            responsables=responsables_connus(), dod=s.dod_etat(p.dod_commune),
@@ -1148,6 +1149,11 @@ def story_sprint(sid):
     if erreur:
         flash(erreur + ' Complétez-la sur sa fiche (estimation et DoR).', 'error')
     return redirect(url_for('planifier', sprint=vue))
+
+def sprints_avec_release(p):
+    rs, cal = resume_sprints(p), calendrier_releases(p)
+    for r in rs: r['release'] = release_du_sprint(cal, r['sprint'].numero)
+    return rs
 
 def sprint_a_planifier(p):
     """Premier sprint dont la revue n'est pas cloturee."""

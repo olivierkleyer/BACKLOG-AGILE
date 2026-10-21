@@ -105,6 +105,14 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .etape-pill:hover{background:var(--blue)}
 .etape-pill.fini{background:var(--green)}
 @media(max-width:768px){.etape-pill{display:none}}
+.repli-tete{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.repli-tete .card-title{margin:0}
+.repli-resume{flex:1;min-width:0;font-size:12.5px;color:var(--gray-500)}
+.repli-btn{margin-left:auto}
+.repliable:not(.replie) .repli-resume{display:none}
+.repliable:not(.replie) > .repli-tete{margin-bottom:14px}
+.repliable.replie > .corps{display:none}
+.repliable.replie{padding-top:14px;padding-bottom:14px}
 .parcours.avance{box-shadow:0 0 0 3px var(--green),0 0 0 8px rgba(22,163,74,.18);transition:box-shadow 1.5s}
 /* Badges */
 .badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
@@ -269,8 +277,16 @@ document.querySelectorAll('table.data-table').forEach(function(t){
   al.forEach(function(a){ t.appendChild(a.cloneNode(true)); });
   setTimeout(function(){ t.style.opacity='0'; setTimeout(function(){ t.remove(); },500); },8000); })();
 // Amener l'utilisateur au bon champ : met en evidence la zone cible et y place le curseur
+// Blocs repliables : un clic sur « Afficher / Modifier » deplie le bloc
+document.querySelectorAll('.repliable').forEach(function(c){
+  var b=c.querySelector('.repli-btn'); if(!b) return; var lib=b.textContent;
+  function maj(){ b.textContent=c.classList.contains('replie')?lib:'Replier'; }
+  b.addEventListener('click',function(){ c.classList.toggle('replie'); maj(); }); maj();
+});
+function deplier(el){ var c=el.closest&&el.closest('.repliable.replie'); if(c){ c.classList.remove('replie'); var b=c.querySelector('.repli-btn'); if(b) b.textContent='Replier'; } }
 function viser(id){
   var el=id&&document.getElementById(id); if(!el) return false;
+  deplier(el);
   el.scrollIntoView({behavior:'smooth',block:'center'});
   el.classList.remove('cible'); void el.offsetWidth; el.classList.add('cible');
   var f=el.querySelector('.ajout-story input[name=titre]')||el.querySelector('input[type=text]:not([disabled]),select:not([disabled])');

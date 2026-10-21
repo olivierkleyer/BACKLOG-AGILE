@@ -7,12 +7,13 @@
 {% endblock %}
 {% block extra_css %}
 <style>
+.intro-plan{font-size:13px;color:var(--gray-700);background:var(--blue-ll,#eff6ff);border-radius:8px;padding:10px 14px;margin:0 0 16px}
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
 .tab{padding:6px 12px;border-radius:99px;font-size:12px;font-weight:700;text-decoration:none;color:var(--gray-700);background:white;border:1px solid var(--gray-200)}
 .tab:hover{border-color:var(--blue);color:var(--blue)}
 .tab.active{background:var(--navy);color:white;border-color:var(--navy)}
 .tab .cnt{font-weight:500;opacity:.6;margin-left:4px}
-.plan-head{display:grid;grid-template-columns:minmax(0,1fr) 260px auto;gap:14px;align-items:end}
+.plan-head{display:grid;grid-template-columns:minmax(0,1fr) 260px;gap:14px;align-items:end}
 .plan-head .field{margin:0}
 .jauge{font-size:13px}
 .jauge .val{font-family:var(--mono,monospace);font-weight:800;font-size:20px;color:var(--navy)}
@@ -36,16 +37,17 @@ details.pp .pl-row{opacity:.75}
   {% endfor %}
 </div>
 
+<p class="intro-plan">Le calendrier fixe les <b>dates</b> des sprints. Ici, l'équipe décide de leur <b>contenu</b> (sprint planning) : l'objectif du sprint, puis les stories qu'elle s'engage à réaliser, sans dépasser sa capacité.</p>
 {% set over = sp.capacite and engage > sp.capacite %}
 <div class="card">
   <div class="card-title">Objectif et capacité du sprint {{ n }}</div>
   <form class="plan-head" method="post">
     <div class="field"><label>Objectif du sprint</label>
-      <input type="text" name="objectif" value="{{ sp.objectif }}" placeholder="ex : lancer et arrêter une récolte en sécurité" {% if not est_po %}disabled{% endif %}></div>
+      <input type="text" name="objectif" onchange="this.form.submit()" value="{{ sp.objectif }}" placeholder="ex : lancer et arrêter une récolte en sécurité" {% if not est_po %}disabled{% endif %}></div>
     <div class="field"><label>Capacité de l'équipe (points)</label>
-      <input type="number" name="capacite" min="0" step="0.5" value="{{ sp.capacite|fmt if sp.capacite else '' }}" {% if not est_po %}disabled{% endif %}></div>
-    {% if est_po %}<button class="btn btn-primary">Enregistrer</button>{% endif %}
+      <input type="number" name="capacite" onchange="this.form.submit()" min="0" step="0.5" value="{{ sp.capacite|fmt if sp.capacite else '' }}" {% if not est_po %}disabled{% endif %}></div>
   </form>
+  {% if est_po %}<p class="small muted" style="margin-top:6px">Enregistré automatiquement dès que vous quittez le champ.</p>{% endif %}
   <div class="jauge {{ 'over' if over }}" style="margin-top:16px">
     <span class="val">{{ engage|fmt }}</span> / {{ sp.capacite|fmt if sp.capacite else '?' }} points engagés
     {% if sp.capacite %}<div class="progress {{ 'over' if over }}" style="margin-top:6px"><span style="width:{{ [100, (100*engage/sp.capacite)|round|int]|min }}%"></span></div>{% endif %}
