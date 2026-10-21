@@ -447,6 +447,16 @@ def contexte():
             'court': lambda u: next((x['court'] for x in personnes() if x['id'] == u), u),
             'nat': lambda code: next((n for n in nats if n['code'] == code), nature_info(p, code))}
 
+def sprint_joue(p, stories):
+    """Un sprint est joue quand il a atteint son dernier jour simule ou que toutes ses stories sont faites."""
+    if Revue.query.filter_by(cloturee=True).count():
+        return True
+    for sp in Sprint.query.all():
+        dans = [s for s in stories if s.sprint == sp.numero]
+        if dans and (all(s.statut == 'Fait' for s in dans) or (sp.jour_courant or 1) >= jours_sprint(p)):
+            return True
+    return False
+
 def parcours(p):
     """Fil conducteur : les 9 etapes du PO et de l'equipe, avec la prochaine action."""
     stories = Story.query.all()
@@ -480,8 +490,8 @@ def parcours(p):
          'compte': '{}'.format(len(planifiees)) if planifiees else '',
          'action': "Fixez l'objectif et la capacité du sprint, puis faites-y entrer les stories, par priorité, sans dépasser la capacité.",
          'lien': url_for('planifier'), 'bouton': 'Planifier'},
-        {'n': 7, 'nom': 'Jouer le sprint (Kanban)', 'ok': any(s.statut != 'A faire' for s in stories if s.sprint), 'po': False,
-         'action': 'Faites avancer les cartes sur le Kanban ; le PO avance le jour après chaque daily.',
+        {'n': 7, 'nom': 'Jouer le sprint (Kanban)', 'ok': sprint_joue(p, stories), 'po': False,
+         'action': "Faites avancer les cartes sur le Kanban ; le PO avance le jour après chaque daily. L'étape est terminée au dernier jour du sprint ou quand toutes ses stories sont faites.",
          'lien': url_for('kanban'), 'bouton': 'Ouvrir le Kanban'},
         {'n': 8, 'nom': 'Revue de sprint', 'ok': Revue.query.filter_by(cloturee=True).count() > 0, 'po': False,
          'action': 'En fin de sprint : démontrez les stories terminées, recueillez les retours clients, puis le PO clôture la revue.',

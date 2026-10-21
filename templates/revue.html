@@ -74,7 +74,7 @@
   <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--gray-100)">
     <div class="lbl" style="margin-bottom:8px">Non terminées · non démontrées ({{ restantes|length }})</div>
     {% for s in restantes %}<div class="small" style="padding:3px 0"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span> <a href="{{ url_for('story', sid=s.id) }}">{{ s.numero() }} · {{ s.titre }}</a> <span class="muted">· {{ s.points|fmt }} pts</span></div>{% endfor %}
-    <p class="small muted" style="margin-top:6px">Elles retournent au backlog : replanifiez-les depuis leur fiche ou la page Releases &amp; sprints.</p>
+    <p class="small muted" style="margin-top:6px">Elles retournent au backlog : replanifiez-les depuis leur fiche ou la page Sprint planning.</p>
   </div>
   {% endif %}
 </div>

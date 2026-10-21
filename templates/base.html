@@ -315,7 +315,10 @@ document.querySelectorAll('.parcours-next a, .pstep, a.js-viser').forEach(functi
   });
 });
 (function(){ var p=document.getElementById('parcours'), b=document.getElementById('parcours-toggle'); if(!p) return;
-  var ferme=false; try{ ferme=localStorage.getItem('parcours-ferme')==='1'; }catch(e){}
+  // sur telephone, le bandeau est replie par defaut : la barre du haut affiche deja l'etape en cours
+  var ferme=window.matchMedia('(max-width:768px)').matches, choix=null;
+  try{ choix=localStorage.getItem('parcours-ferme'); }catch(e){}
+  if(choix!==null) ferme = choix==='1';
   if(etapeAvancee) ferme=false;
   function maj(){ p.classList.toggle('ferme',ferme); b.textContent=ferme?'Afficher':'Masquer'; }
   b.onclick=function(){ ferme=!ferme; try{ localStorage.setItem('parcours-ferme',ferme?'1':'0'); }catch(e){} maj(); }; maj(); })();
