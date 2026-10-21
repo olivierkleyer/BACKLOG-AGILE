@@ -125,7 +125,7 @@ class Projet(db.Model):
     duree_semaines = db.Column(db.Integer, default=2)
     date_debut = db.Column(db.String(10), default='')     # AAAA-MM-JJ
     dod_commune_json = db.Column(db.Text, default='[]')
-    dod_bloquante = db.Column(db.Boolean, default=True)    # une story ne passe en Fait que si sa DoD est complete
+    dod_bloquante = db.Column(db.Boolean, default=False)   # si coche : une story ne passe en Fait que si sa DoD est complete
     dor_commune_json = db.Column(db.Text, default='[]')
     dor_bloquante = db.Column(db.Boolean, default=False)   # si coche : une story n'entre dans un sprint que si elle est prete
     natures_perso_json = db.Column(db.Text, default='[]')  # natures de story ajoutees par le PO
