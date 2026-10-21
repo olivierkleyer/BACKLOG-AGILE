@@ -98,6 +98,14 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .pcond{font-size:12px;color:var(--blue);margin-top:4px;font-weight:600}
 .parcours-aide{font-size:11px;color:var(--gray-500);margin:-4px 0 10px}
 .mobile-title small{font-weight:500;opacity:.6;margin-left:6px}
+.mobile-title{min-width:0;display:flex;flex-direction:column;gap:1px}
+.mobile-title .m-etape{color:white;text-decoration:none;font-size:13.5px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mobile-title .m-sous{font-size:10.5px;font-weight:500;opacity:.6}
+.etape-pill{display:inline-flex;align-items:center;gap:6px;background:var(--navy);color:white;text-decoration:none;font-size:12px;font-weight:700;padding:5px 12px;border-radius:99px;margin-left:12px;vertical-align:middle;white-space:nowrap}
+.etape-pill:hover{background:var(--blue)}
+.etape-pill.fini{background:var(--green)}
+@media(max-width:768px){.etape-pill{display:none}}
+.parcours.avance{box-shadow:0 0 0 3px var(--green),0 0 0 8px rgba(22,163,74,.18);transition:box-shadow 1.5s}
 /* Badges */
 .badge{display:inline-flex;align-items:center;justify-content:center;padding:3px 9px;border-radius:99px;font-size:11px;font-weight:700;white-space:nowrap}
 .st-A-faire{background:var(--gray-100);color:var(--gray-700)}
@@ -175,7 +183,11 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
 </head>
 <body>
 <div class="mobile-topbar">
-  <span class="mobile-title">Backlog Agile<small>{{ session.username }} · {{ 'PO' if est_po else 'équipe' }}</small></span>
+  <span class="mobile-title">
+    {% if parcours.courante %}<a class="m-etape" href="{{ parcours.courante.lien }}">Étape {{ parcours.courante.n }}/{{ parcours.etapes|length }} · {{ parcours.courante.nom }}</a>
+    <span class="m-sous">Backlog Agile · {{ session.username }} · {{ 'PO' if est_po else 'équipe' }}</span>
+    {% else %}<span class="m-etape">Backlog Agile</span><span class="m-sous">{{ session.username }} · {{ 'PO' if est_po else 'équipe' }}</span>{% endif %}
+  </span>
   <button class="burger" id="burger-btn" aria-label="Menu">&#9776;</button>
 </div>
 <div class="overlay" id="overlay"></div>
@@ -211,7 +223,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
   </nav>
   <main class="main">
     <div class="topbar">
-      <h2>{% block page_title %}{% endblock %}</h2>
+      <h2>{% block page_title %}{% endblock %}{% if parcours.courante %}<a class="etape-pill no-print" href="{{ parcours.courante.lien }}" title="Étape en cours du fil conducteur">Étape {{ parcours.courante.n }}/{{ parcours.etapes|length }} · {{ parcours.courante.nom }} &rarr;</a>{% endif %}</h2>
       <div class="topbar-right">{% block topbar_actions %}{% endblock %}</div>
     </div>
     <div class="page-content">
@@ -222,7 +234,7 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
       {% endwith %}
       {% if not est_po %}{% block ro_banner %}{% endblock %}{% endif %}
       {% if parcours.courante and request.endpoint in ('backlog','sprints','planifier','kanban','story','revue','retro') %}{% set c = parcours.courante %}
-      <div class="parcours no-print" id="parcours">
+      <div class="parcours no-print" id="parcours" data-faites="{{ parcours.etapes|selectattr('ok')|list|length }}">
         <div class="parcours-head"><div class="card-title">Mise en route · étape {{ c.n }} sur {{ parcours.etapes|length }}</div>
           <button type="button" class="btn-link" id="parcours-toggle">Masquer</button></div>
         <div class="parcours-steps">
@@ -265,7 +277,21 @@ function viser(id){
   if(f) setTimeout(function(){ try{ f.focus({preventScroll:true}); }catch(e){ f.focus(); } },350);
   return true;
 }
-if(location.hash) viser(location.hash.slice(1));
+// Une etape vient de passer au vert : on remonte au fil conducteur pour cliquer sur la suivante
+var etapeAvancee=(function(){
+  var p=document.getElementById('parcours'); if(!p) return false;
+  var n=parseInt(p.dataset.faites,10), avant=null;
+  try{ avant=sessionStorage.getItem('etapes-faites'); sessionStorage.setItem('etapes-faites', n); }catch(e){}
+  if(avant===null || n<=parseInt(avant,10)) return false;
+  p.classList.remove('ferme'); var b=document.getElementById('parcours-toggle'); if(b) b.textContent='Masquer';
+  try{ history.scrollRestoration='manual'; }catch(e){}
+  if(location.hash) history.replaceState(null,'',location.pathname+location.search);
+  var haut=function(){ window.scrollTo(0,0); }; haut(); window.addEventListener('load',function(){ setTimeout(haut,30); });
+  document.querySelectorAll('.toasts').forEach(function(t){ t.remove(); });
+  p.classList.add('avance'); setTimeout(function(){ p.classList.remove('avance'); },2500);
+  return true;
+})();
+if(location.hash && !etapeAvancee) viser(location.hash.slice(1));
 document.querySelectorAll('.parcours-next a, .pstep').forEach(function(a){
   a.addEventListener('click',function(e){
     var u=new URL(a.href, location.href);
@@ -274,6 +300,7 @@ document.querySelectorAll('.parcours-next a, .pstep').forEach(function(a){
 });
 (function(){ var p=document.getElementById('parcours'), b=document.getElementById('parcours-toggle'); if(!p) return;
   var ferme=false; try{ ferme=localStorage.getItem('parcours-ferme')==='1'; }catch(e){}
+  if(etapeAvancee) ferme=false;
   function maj(){ p.classList.toggle('ferme',ferme); b.textContent=ferme?'Afficher':'Masquer'; }
   b.onclick=function(){ ferme=!ferme; try{ localStorage.setItem('parcours-ferme',ferme?'1':'0'); }catch(e){} maj(); }; maj(); })();
 var sb=document.getElementById('sidebar'), ov=document.getElementById('overlay');
