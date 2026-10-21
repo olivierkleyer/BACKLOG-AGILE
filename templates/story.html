@@ -11,6 +11,10 @@
 {% endblock %}
 {% block extra_css %}
 <style>
+.ajout-tache{margin-top:14px;padding-top:12px;border-top:1px solid var(--gray-100)}
+.ajout-titre{font-size:12px;font-weight:700;color:var(--gray-500);margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px}
+.ft-new{display:grid;grid-template-columns:minmax(0,1fr) 100px 150px auto;gap:8px;align-items:center}
+@media(max-width:768px){.ft-new{grid-template-columns:1fr 1fr}.ft-new input[name=titre],.ft-new .btn{grid-column:1/-1}}
 .barre-save{position:sticky;bottom:0;z-index:40;grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:12px;background:rgba(255,255,255,.96);border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:0 -4px 14px rgba(0,0,0,.06);padding:10px 16px;margin-top:4px}
 @media(max-width:768px){.barre-save span{display:none}.barre-save .btn{width:100%;justify-content:center}}
 .fiche{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
@@ -259,27 +263,29 @@
     <tbody>
     {% for t in s.taches %}{% set fid = 'ft' ~ t.id %}
       <tr>
-        <td><input form="{{ fid }}" type="text" name="titre" value="{{ t.titre }}" required></td>
-        <td class="c"><input form="{{ fid }}" class="h" type="number" name="heures" min="0" step="0.5" value="{{ t.heures|fmt }}"></td>
-        <td class="c"><select form="{{ fid }}" class="r" name="responsable"><option value="">—</option>{% for x in PERSONNES %}<option value="{{ x.id }}" {% if x.id==t.responsable %}selected{% endif %}>{{ x.court }}</option>{% endfor %}{% if t.responsable and t.responsable not in PERSONNES|map(attribute='id') %}<option selected>{{ t.responsable }}</option>{% endif %}</select></td>
+        <td><input form="{{ fid }}" type="text" name="titre" value="{{ t.titre }}" required class="auto"></td>
+        <td class="c"><input form="{{ fid }}" class="h auto" type="number" name="heures" min="0" step="0.5" value="{{ t.heures|fmt }}"></td>
+        <td class="c"><select form="{{ fid }}" class="r auto" name="responsable"><option value="">—</option>{% for x in PERSONNES %}<option value="{{ x.id }}" {% if x.id==t.responsable %}selected{% endif %}>{{ x.court }}</option>{% endfor %}{% if t.responsable and t.responsable not in PERSONNES|map(attribute='id') %}<option selected>{{ t.responsable }}</option>{% endif %}</select></td>
         <td class="c"><select form="{{ fid }}" class="st" name="statut" onchange="this.form.submit()">{% for st in STATUTS %}<option {% if st==t.statut %}selected{% endif %}>{{ st }}</option>{% endfor %}</select></td>
-        <td class="c" style="white-space:nowrap"><button form="{{ fid }}" class="btn btn-ghost btn-sm">OK</button> <button form="{{ fid }}" class="btn-link" name="supprimer" value="1" title="Supprimer la tâche" onclick="return confirm('Supprimer cette tâche ?')">&#10005;</button></td>
+        <td class="c" style="white-space:nowrap"><button form="{{ fid }}" class="btn-link" name="supprimer" value="1" title="Supprimer la tâche" onclick="return confirm('Supprimer cette tâche ?')">&#10005;</button></td>
       </tr>
     {% endfor %}
-      <tr>
-        <td><input form="ft-new" type="text" name="titre" placeholder="Nouvelle tâche…" required></td>
-        <td class="c"><input form="ft-new" class="h" type="number" name="heures" min="0" step="0.5" placeholder="h"></td>
-        <td class="c"><select form="ft-new" class="r" name="responsable"><option value="">Resp.</option>{% for x in PERSONNES %}<option value="{{ x.id }}">{{ x.court }}</option>{% endfor %}</select></td>
-        <td></td>
-        <td class="c"><button form="ft-new" class="btn btn-success btn-sm">Créer la tâche</button></td>
-      </tr>
     </tbody>
     {% if s.taches %}
     <tfoot><tr><td>Total</td><td class="c mono">{{ s.heures()|fmt }} h</td><td></td><td class="c small">{{ s.taches|selectattr('statut','equalto','Fait')|list|length }}/{{ s.taches|length }} faites</td><td></td></tr></tfoot>
     {% endif %}
   </table>
   {% for t in s.taches %}<form id="ft{{ t.id }}" method="post" action="{{ url_for('tache_modifier', tid=t.id) }}"></form>{% endfor %}
-  <form id="ft-new" method="post" action="{{ url_for('tache_ajouter', sid=s.id) }}"></form>
+  {% if s.taches %}<p class="small muted" style="margin:6px 0 0">Une modification de tâche (titre, heures, responsable, statut) s'enregistre automatiquement dès qu'on quitte le champ.</p>{% endif %}
+  <div class="ajout-tache" id="nouvelle-tache">
+    <div class="ajout-titre">+ Ajouter une tâche</div>
+    <form id="ft-new" method="post" action="{{ url_for('tache_ajouter', sid=s.id) }}" class="ft-new">
+      <input type="text" name="titre" placeholder="ex : Écran d'import du fichier" required>
+      <input class="h" type="number" name="heures" min="0" step="0.5" placeholder="Heures">
+      <select class="r" name="responsable"><option value="">Responsable…</option>{% for x in PERSONNES %}<option value="{{ x.id }}">{{ x.court }}</option>{% endfor %}</select>
+      <button class="btn btn-success btn-sm">Ajouter la tâche</button>
+    </form>
+  </div>
   </div>
 </div>
 
@@ -310,6 +316,25 @@
 document.querySelectorAll('.dod-list input[type=checkbox]').forEach(function(c){
   c.addEventListener('change',function(){ c.closest('li').classList.toggle('ok', c.checked); });
 });
+// Taches : enregistrement automatique des lignes existantes
+document.querySelectorAll('#taches .auto').forEach(function(el){
+  el.addEventListener('change', function(){ var f=document.getElementById(el.getAttribute('form')); if(f) f.requestSubmit ? f.requestSubmit() : f.submit(); });
+});
+// Les formulaires de taches rechargent la page : on enregistre d'abord la fiche si elle a ete modifiee
+(function(){
+  var fiche=document.getElementById('fiche'); if(!fiche) return; var sale=false;
+  fiche.addEventListener('input', function(){ sale=true; }); fiche.addEventListener('change', function(){ sale=true; });
+  fiche.addEventListener('submit', function(){ sale=false; });
+  document.querySelectorAll('form[id^="ft"]').forEach(function(f){
+    f.addEventListener('submit', function(e){
+      if(!sale) return; e.preventDefault(); sale=false;
+      var b=e.submitter; if(b && b.name){ var h=document.createElement('input'); h.type='hidden'; h.name=b.name; h.value=b.value; f.appendChild(h); }
+      fetch(fiche.action || location.pathname, {method:'POST', body:new FormData(fiche), credentials:'same-origin'})
+        .finally(function(){ f.submit(); });
+    });
+  });
+  window.addEventListener('beforeunload', function(e){ if(sale){ e.preventDefault(); e.returnValue=''; } });
+})();
 // RACI : une ligne acteur + role ; « + Ajouter un acteur » duplique une ligne vide
 (function(){
   var box=document.getElementById('raci-lignes'), add=document.getElementById('raci-ajout'); if(!box) return;

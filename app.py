@@ -489,7 +489,7 @@ def parcours(p):
          'bouton': ('Story suivante à affiner : ' + a_affiner.numero()) if a_affiner else 'Ouvrir le backlog'},
         {'n': 6, 'nom': 'Sprint planning', 'ok': any(s.sprint for s in stories), 'po': False,
          'compte': '{}'.format(len(planifiees)) if planifiees else '',
-         'action': "Fixez l'objectif et la capacité du sprint, puis faites-y entrer les stories, par priorité, sans dépasser la capacité.",
+         'action': "Fixez l'objectif et la capacité du sprint, faites-y entrer les stories par priorité sans dépasser la capacité, puis découpez chaque story du sprint en tâches (fiche story, bloc Tâches).",
          'lien': url_for('planifier'), 'bouton': 'Planifier'},
         {'n': 7, 'nom': 'Jouer le sprint (Kanban)', 'ok': sprint_joue(p, stories), 'po': False,
          'action': "Faites avancer les cartes sur le Kanban ; le PO avance le jour après chaque daily. L'étape est terminée au dernier jour du sprint ou quand toutes ses stories sont faites.",
@@ -973,7 +973,8 @@ def tache_ajouter(sid):
         db.session.add(Tache(story_id=s.id, titre=titre[:200], heures=nombre(request.form.get('heures')),
                              responsable=request.form.get('responsable', '').strip()[:40]))
         db.session.commit()
-    return redirect(url_for('story', sid=s.id) + '#taches')
+        flash('Tâche « {} » ajoutée ({} tâche(s) sur cette story). Saisissez la suivante ci-dessous.'.format(titre[:200], len(s.taches)), 'success')
+    return redirect(url_for('story', sid=s.id) + '#nouvelle-tache')
 
 @app.route('/tache/<int:tid>/modifier', methods=['POST'])
 @connecte
@@ -987,6 +988,7 @@ def tache_modifier(tid):
     changer_statut_tache(t, request.form.get('statut'))
     t.responsable = request.form.get('responsable', '').strip()[:40]
     db.session.commit()
+    flash('Tâche « {} » enregistrée.'.format(t.titre), 'success')
     return redirect(url_for('story', sid=t.story_id) + '#taches')
 
 # ---------------------------------------------------------------- Kanban
