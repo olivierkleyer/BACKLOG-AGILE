@@ -6,6 +6,7 @@ from flask_sqlalchemy import SQLAlchemy
 from werkzeug.security import generate_password_hash, check_password_hash
 import json, os, re, secrets
 from sqlalchemy import text
+from zoneinfo import ZoneInfo
 
 app = Flask(__name__)
 
@@ -1294,6 +1295,94 @@ def reset_all():
 def retour_ou(defaut):
     r = request.form.get('retour', '')
     return r if r.startswith('/') and not r.startswith('//') else defaut
+
+# ---------------------------------------------------------------- Sauvegarde / restauration
+SAUVEGARDE_VERSION = 1
+def modeles_sauvegardes():
+    # ordre d'insertion : parents avant enfants (les pieces jointes ne sont pas sauvegardees)
+    return [Projet, Sprint, Release, Feature, Story, Tache, Revue, Retour, Retro, PostIt, ActionAmelioration]
+
+def ligne_vers_dict(obj):
+    out = {}
+    for c in obj.__table__.columns:
+        v = getattr(obj, c.name)
+        out[c.name] = v.isoformat() if isinstance(v, (datetime, date)) else v
+    return out
+
+@app.route('/admin/sauvegarde')
+@po_requis
+def sauvegarde():
+    p = get_projet()
+    maintenant = datetime.now(ZoneInfo('Europe/Paris'))
+    data = {'application': 'backlog-agile', 'version': SAUVEGARDE_VERSION,
+            'date': maintenant.strftime('%Y-%m-%dT%H:%M'),
+            'prenoms': {u.username: u.prenom for u in User.query.all() if u.prenom},
+            'tables': {m.__tablename__: [ligne_vers_dict(o) for o in m.query.order_by(m.id).all()] for m in modeles_sauvegardes()}}
+    data['tables']['projet'] = [{k: v for k, v in r.items() if k != 'instance_id'} for r in data['tables']['projet']]
+    nom = re.sub(r'[^A-Za-z0-9]+', '-', (p.nom or 'backlog'))[:40].strip('-') or 'backlog'
+    fichier = 'backlog-{}-{}.json'.format(nom, maintenant.strftime('%Y-%m-%d-%Hh%M'))
+    return Response(json.dumps(data, ensure_ascii=False, indent=1), mimetype='application/json',
+                    headers={'Content-Disposition': 'attachment; filename="{}"'.format(fichier)})
+
+def convertir(col, v):
+    if v is None: return None
+    t = col.type.python_type if hasattr(col.type, 'python_type') else None
+    try:
+        if t is datetime: return datetime.fromisoformat(v)
+        if t is date: return date.fromisoformat(v)
+    except (TypeError, ValueError):
+        return None
+    return v
+
+@app.route('/admin/restauration', methods=['POST'])
+@po_requis
+def restauration():
+    f = request.files.get('fichier')
+    try:
+        data = json.loads(f.read().decode('utf-8')) if f else None
+        assert data and data.get('application') == 'backlog-agile' and 'tables' in data
+    except Exception:
+        flash("Fichier non reconnu : choisissez un fichier de sauvegarde Backlog Agile (.json).", 'error')
+        return redirect(url_for('admin_users') + '#sauvegarde')
+    instance = get_projet().instance_id
+    try:
+        for m in reversed(modeles_sauvegardes() + [PieceJointe]):
+            if m is Story: Story.query.update({'parent_id': None})
+            m.query.delete()
+        db.session.flush()
+        for m in modeles_sauvegardes():
+            cols = {c.name: c for c in m.__table__.columns}
+            lignes = data['tables'].get(m.__tablename__, [])
+            if m is Story:   # les parents sont poses apres coup (auto-reference)
+                for r in lignes:
+                    db.session.add(Story(**{k: convertir(cols[k], v) for k, v in r.items() if k in cols and k != 'parent_id'}))
+                db.session.flush()
+                for r in lignes:
+                    if r.get('parent_id'): db.session.get(Story, r['id']).parent_id = r['parent_id']
+            else:
+                for r in lignes:
+                    db.session.add(m(**{k: convertir(cols[k], v) for k, v in r.items() if k in cols}))
+            db.session.flush()
+        p = get_projet()
+        if not p:
+            db.session.add(Projet(id=1)); db.session.flush(); p = get_projet()
+        p.instance_id = instance
+        for u in User.query.all():
+            u.prenom = (data.get('prenoms') or {}).get(u.username, u.prenom)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        flash('Restauration impossible ({}). Rien n\'a été modifié.'.format(type(e).__name__), 'error')
+        return redirect(url_for('admin_users') + '#sauvegarde')
+    if db.engine.dialect.name == 'postgresql':
+        with db.engine.begin() as cx:
+            for m in modeles_sauvegardes():
+                t = m.__table__.fullname
+                cx.execute(text("SELECT setval(pg_get_serial_sequence('{}', 'id'), COALESCE((SELECT MAX(id) FROM {}), 1))".format(t, t)))
+    synchroniser_sprints(get_projet().nb_sprints)
+    n = len(data['tables'].get('story', []))
+    flash('Session restaurée depuis la sauvegarde du {} : {} stories.'.format(data.get('date', '?')[:16].replace('T', ' à '), n), 'success')
+    return redirect(url_for('index'))
 
 @app.route('/admin/exemple', methods=['POST'])
 @po_requis

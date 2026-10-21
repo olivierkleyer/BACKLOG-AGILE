@@ -29,6 +29,16 @@
     </tbody>
   </table>
 </div>
+<div class="card" id="sauvegarde" style="border-color:#86efac">
+  <div class="card-title" style="color:var(--green)">Sauvegarder / restaurer la session</div>
+  <p class="small muted" style="margin-bottom:12px">Les données de l'appli peuvent disparaître (mise en veille ou redéploiement de l'hébergement). <b>Sauvegardez à la pause et en fin de séance</b> : le fichier téléchargé contient tout (calendrier, releases, features, stories, tâches, RACI, DoR/DoD, revues, rétros), sauf les pièces jointes. Pour reprendre, restaurez-le : la session actuelle est remplacée.</p>
+  <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">
+    <a class="btn btn-success" href="{{ url_for('sauvegarde') }}">&#11015; Télécharger la sauvegarde</a>
+    <form method="post" action="{{ url_for('restauration') }}" enctype="multipart/form-data" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      <input type="file" name="fichier" accept=".json,application/json" required style="max-width:260px">
+      <button class="btn btn-primary btn-sm">Restaurer ce fichier</button></form>
+  </div>
+</div>
 <div class="card" style="border-color:#93c5fd">
   <div class="card-title" style="color:var(--blue)">Charger l'exemple ROBO AGRI</div>
   <p class="small muted" style="margin-bottom:12px">Remplace le backlog actuel par le cas du robot vendangeur autonome : 2 releases, 4 features, 17 stories de 5 natures (user stories, story technique, bug avec andon, spike, dette technique).
