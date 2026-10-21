@@ -53,6 +53,8 @@
 .raci-tab td:first-child{font-weight:600;color:var(--navy)}
 .raci-tab select{padding:5px 8px;font-size:12px;max-width:230px}
 .raci-tab tr.on td{background:var(--blue-ll)}
+.raci-ligne{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.3fr) auto;gap:6px;margin-bottom:6px;align-items:center}
+.raci-ligne select{padding:6px 8px;font-size:12.5px}
 .raci-regle{font-size:12px;color:var(--gray-500);margin:-6px 0 10px}
 .pj-list{list-style:none;display:flex;flex-direction:column;gap:6px;margin-bottom:12px}
 .pj-list li{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--gray-200);border-radius:8px;font-size:13px}
@@ -80,10 +82,6 @@
           <select name="nature" id="nature" {% if not est_po %}disabled{% endif %}>
             {% for n in NATURES %}<option value="{{ n.code }}" {% if n.code==s.nature %}selected{% endif %}>{{ n.nom }}</option>{% endfor %}
           </select></div>
-        <div class="field"><label>Feature</label>
-          <select name="feature_id" {% if not est_po %}disabled{% endif %}>
-            {% for f in features %}<option value="{{ f.id }}" {% if f.id==s.feature_id %}selected{% endif %}>{{ f.nom }}</option>{% endfor %}
-          </select></div>
       </div>
       <div class="field"><label>Titre</label><input type="text" name="titre" value="{{ s.titre }}" {% if not est_po %}disabled{% endif %} required></div>
 
@@ -104,17 +102,15 @@
 
     <div class="card">
       <div class="card-title">Rattachement</div>
-      {% if autorises == [] %}
-        <p class="muted small">Une story de nature « {{ N.nom }} » ne se rattache à aucune autre story.</p>
-      {% else %}
-        <p class="aide" style="margin-top:-6px">Facultatif. {% if s.nature=='tech' %}Une story technique sert généralement une user story.{% elif s.nature=='bug' %}Une correction de bug se rattache à une user story ou à une story technique.{% elif s.nature=='spike' %}Un spike (spécification technique ou détaillée) se rattache à une user story, une story technique ou une correction de bug.{% else %}Cette story peut être rattachée à n'importe quelle autre story.{% endif %}</p>
-        <div class="field" style="margin-bottom:0"><label>Story parente</label>
-          <select name="parent_id">
-            <option value="">— Aucune —</option>
-            {% for x in parents %}<option value="{{ x.id }}" {% if x.id==s.parent_id %}selected{% endif %}>{{ x.numero() }} · {{ x.titre }} ({{ nat(x.nature).nom }})</option>{% endfor %}
-          </select></div>
-        {% if not parents %}<p class="muted small" style="margin-top:6px">Aucune story compatible pour l'instant.</p>{% endif %}
-      {% endif %}
+      <div class="field"><label>Feature</label>
+        <select name="feature_id" {% if not est_po %}disabled{% endif %}>
+          {% for f in features %}<option value="{{ f.id }}" {% if f.id==s.feature_id %}selected{% endif %}>{{ f.nom }}{% if f.release %} · {{ f.release.nom }}{% endif %}</option>{% endfor %}
+        </select></div>
+      <div class="field" style="margin-bottom:0"><label>Story parente <span class="muted" style="text-transform:none;font-weight:500">(facultatif)</span></label>
+        <select name="parent_id">
+          <option value="">— Aucune —</option>
+          {% for x in parents %}<option value="{{ x.id }}" {% if x.id==s.parent_id %}selected{% endif %}>{{ x.numero() }} · {{ x.titre }}</option>{% endfor %}
+        </select></div>
       {% if s.enfants %}
       <div class="dod-sub">Stories rattachées à celle-ci</div>
       <ul class="enfants">
@@ -128,16 +124,18 @@
     <div class="card" id="raci">
       <div class="card-title" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap"><span>Responsabilités (RACI)</span>
         {{ porteurs(s, '<span class="muted">non défini</span>') }}</div>
-      <p class="raci-regle">Facultatif. Si vous l'utilisez : <b>un seul A</b> (Accountable, rend des comptes) et <b>au moins un R</b> (Responsible, réalise). Une personne n'a qu'un rôle ; seul le cumul <b>R+A</b> est possible. C = consulté, I = informé.</p>
-      <table class="raci-tab">
-        {% for x in PERSONNES %}{% set v = s.raci.get(x.id, '') %}
-        <tr class="{{ 'on' if v }}"><td>{{ x.label }}</td><td style="text-align:right">
-          <select name="raci_{{ x.id }}">
-            <option value="">—</option>
-            {% for r in RACI_ROLES %}<option value="{{ r }}" {% if v==r %}selected{% endif %}>{{ RACI_LIBELLES[r] }}</option>{% endfor %}
-          </select></td></tr>
+      <p class="raci-regle">Facultatif. Choisissez un acteur et son rôle : <b>un seul A</b> (rend des comptes), <b>au moins un R</b> (réalise) ; R+A possible. C = consulté, I = informé.</p>
+      <div id="raci-lignes">
+        {% set lignes = s.raci.items()|list %}
+        {% for u, v in lignes + [('', '')] %}
+        <div class="raci-ligne">
+          <select name="raci_acteur" class="raci-acteur"><option value="">Acteur…</option>{% for x in PERSONNES %}<option value="{{ x.id }}" {% if x.id==u %}selected{% endif %}>{{ x.label }}</option>{% endfor %}</select>
+          <select name="raci_niveau" class="raci-niveau"><option value="">Rôle…</option>{% for r in RACI_ROLES %}<option value="{{ r }}" {% if v==r %}selected{% endif %}>{{ RACI_LIBELLES[r] }}</option>{% endfor %}</select>
+          <button type="button" class="btn-link raci-suppr" title="Retirer">&#10005;</button>
+        </div>
         {% endfor %}
-      </table>
+      </div>
+      <button type="button" class="btn-link" id="raci-ajout" style="margin-top:6px">+ Ajouter un acteur</button>
     </div>
 
     <div class="card" id="dor-bloc">
@@ -296,6 +294,14 @@
 document.querySelectorAll('.dod-list input[type=checkbox]').forEach(function(c){
   c.addEventListener('change',function(){ c.closest('li').classList.toggle('ok', c.checked); });
 });
+// RACI : une ligne acteur + role ; « + Ajouter un acteur » duplique une ligne vide
+(function(){
+  var box=document.getElementById('raci-lignes'), add=document.getElementById('raci-ajout'); if(!box) return;
+  function brancher(l){ l.querySelector('.raci-suppr').onclick=function(){
+    if(box.children.length>1) l.remove(); else l.querySelectorAll('select').forEach(function(x){ x.value=''; }); }; }
+  box.querySelectorAll('.raci-ligne').forEach(brancher);
+  add.onclick=function(){ var m=box.lastElementChild.cloneNode(true); m.querySelectorAll('select').forEach(function(x){ x.value=''; }); box.appendChild(m); brancher(m); m.querySelector('select').focus(); };
+})();
 // Champs de description selon la nature
 (function(){ var sel=document.getElementById('nature');
   function maj(){ var v=sel.value, k=(v==='us'||v==='bug')?v:'autre';

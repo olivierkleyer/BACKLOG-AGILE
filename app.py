@@ -52,7 +52,7 @@ NATURES_BASE = [
 ]
 COULEURS_PERSO = ['#db2777', '#4d7c0f', '#0891b2', '#475569', '#a21caf', '#65a30d']
 # A quelles natures une story peut etre rattachee (vide = aucun rattachement ; None = toutes)
-PARENTS_AUTORISES = {'us': [], 'dette': [], 'tech': ['us'], 'bug': ['us', 'tech'], 'spike': ['us', 'tech', 'bug']}
+PARENTS_AUTORISES = {}   # toute story peut se rattacher a n'importe quelle autre (sauf elle-meme et ses descendantes)
 
 def natures(p):
     out = [dict(n) for n in NATURES_BASE]
@@ -127,7 +127,7 @@ class Projet(db.Model):
     dod_commune_json = db.Column(db.Text, default='[]')
     dod_bloquante = db.Column(db.Boolean, default=True)    # une story ne passe en Fait que si sa DoD est complete
     dor_commune_json = db.Column(db.Text, default='[]')
-    dor_bloquante = db.Column(db.Boolean, default=True)    # une story n'entre dans un sprint que si elle est prete
+    dor_bloquante = db.Column(db.Boolean, default=False)   # si coche : une story n'entre dans un sprint que si elle est prete
     natures_perso_json = db.Column(db.Text, default='[]')  # natures de story ajoutees par le PO
     instance_id = db.Column(db.String(32), default='')     # change quand la base repart de zero
     calendrier_valide = db.Column(db.Boolean, default=False)  # le PO a cliqué « Appliquer » sur le calendrier
@@ -471,15 +471,14 @@ def parcours(p):
          'compte': '{}'.format(len(stories)) if stories else '',
          'action': 'Ajoutez des stories dans une feature : choisissez leur nature (user story, story technique, bug…) et leur titre.',
          'lien': url_for('backlog') + ('#feature-{}'.format(premiere.id) if premiere else ''), 'bouton': 'Ajouter des stories'},
-        {'n': 5, 'nom': 'Estimer et rendre prêtes', 'ok': len(pretes) > 0, 'po': False,
-         'compte': '{}/{}'.format(len(pretes), len(stories)) if stories else '',
-         'action': "Ouvrez chaque story : estimez-la en points, rattachez-la si besoin à une story parente et cochez sa Definition of Ready.",
+        {'n': 5, 'nom': 'Estimer et rendre prêtes', 'ok': any(s.points or s.dor_ok_json not in ('', '[]') or s.sprint for s in stories), 'po': False,
+         'compte': '{}/{}'.format(sum(1 for s in stories if s.points), len(stories)) if stories else '',
+         'action': "Ouvrez une story : estimez-la en points et cochez ce qui est déjà vrai dans sa DoR. Inutile de tout compléter pour passer à la planification.",
          'lien': url_for('story', sid=a_affiner.id) if a_affiner else url_for('backlog'),
          'bouton': ('Story suivante à affiner : ' + a_affiner.numero()) if a_affiner else 'Ouvrir le backlog'},
         {'n': 6, 'nom': 'Planifier le sprint', 'ok': any(s.sprint for s in stories), 'po': False,
-         'compte': '{}/{}'.format(len(planifiees), len(pretes)) if pretes else '',
-         'action': "Fixez l'objectif et la capacité du sprint, puis faites-y entrer les stories prêtes, par priorité, sans dépasser la capacité." if pretes else
-                   "Aucune story n'est encore prête : terminez d'abord l'étape 5 (estimation + DoR complète).",
+         'compte': '{}'.format(len(planifiees)) if planifiees else '',
+         'action': "Fixez l'objectif et la capacité du sprint, puis faites-y entrer les stories, par priorité, sans dépasser la capacité.",
          'lien': url_for('planifier'), 'bouton': 'Planifier'},
         {'n': 7, 'nom': 'Jouer le sprint (Kanban)', 'ok': any(s.statut != 'A faire' for s in stories if s.sprint), 'po': False,
          'action': 'Faites avancer les cartes sur le Kanban ; le PO avance le jour après chaque daily.',
@@ -819,7 +818,9 @@ def story(sid):
         s.andon = bool(fm.get('andon'))
         s.andon_motif = fm.get('andon_motif', '').strip()[:300] if s.andon else ''
         ids = {x['id'] for x in personnes()}
-        raci = {u: fm.get('raci_' + u) for u in ids if fm.get('raci_' + u) in RACI_ROLES}
+        raci = {}
+        for u, niv in zip(fm.getlist('raci_acteur'), fm.getlist('raci_niveau')):
+            if u in ids and niv in RACI_ROLES: raci[u] = niv
         erreur_raci = valider_raci(raci)
         if not erreur_raci:
             s.raci_json = json.dumps(raci)
@@ -1174,7 +1175,8 @@ def planifier():
     debut, fin = dates_sprint(p, n)
     return render_template('planifier.html', n=n, sp=sp, pretes=pretes, pas_pretes=pas_pretes, dans=dans,
                            engage=engage, debut=debut, fin=fin, sprints=resume_sprints(p),
-                           rel=release_du_sprint(calendrier_releases(p), n), dor_commune=p.dor_commune)
+                           rel=release_du_sprint(calendrier_releases(p), n), dor_commune=p.dor_commune,
+                           libres=libres, dor_bloquante=p.dor_bloquante)
 
 @app.route('/parametres', methods=['GET', 'POST'])
 @po_requis

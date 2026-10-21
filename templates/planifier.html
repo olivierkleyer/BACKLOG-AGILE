@@ -56,31 +56,24 @@ details.pp .pl-row{opacity:.75}
 
 <div class="cols">
   <div class="card">
-    <div class="card-title">Stories prêtes · par priorité</div>
-    {% for s in pretes %}
+    <div class="card-title">Stories du backlog · par priorité</div>
+    {% for s in libres %}{% set prete = s.est_prete(dor_commune) %}
     <div class="pl-row">
       <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
       <div class="t"><a href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>
-        <div class="small muted">{{ s.numero() }} · <span style="color:{{ nat(s.nature).couleur }}">{{ nat(s.nature).nom }}</span> · {{ s.feature.nom }}</div></div>
-      <span class="mono small">{{ s.points|fmt }} pts</span>
+        <div class="small muted">{{ s.numero() }} · <span style="color:{{ nat(s.nature).couleur }}">{{ nat(s.nature).nom }}</span> · {{ s.feature.nom }}</div>
+        {% if not prete %}<div class="small" style="color:#b45309">Pas encore prête : {{ s.manque_pour_etre_prete(dor_commune) }}</div>{% endif %}</div>
+      <span class="mono small">{{ s.points|fmt if s.points else '?' }} pts</span>
+      {% if dor_bloquante and not prete %}
+      <a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=s.id) }}" title="La DoR est bloquante (réglage du PO)">Compléter &rarr;</a>
+      {% else %}
       <form method="post" action="{{ url_for('story_sprint', sid=s.id) }}"><input type="hidden" name="sprint" value="{{ n }}"><input type="hidden" name="vue" value="{{ n }}">
         <button class="btn btn-success btn-sm" title="Faire entrer dans le sprint {{ n }}">Ajouter &rarr;</button></form>
+      {% endif %}
     </div>
     {% else %}
-    <p class="vide">Aucune story prête hors sprint. Une story est prête quand elle est estimée et que sa DoR est complète.</p>
+    <p class="vide">Toutes les stories sont planifiées.</p>
     {% endfor %}
-    {% if pas_pretes %}
-    <details class="pp"><summary>{{ pas_pretes|length }} story(s) pas encore prête(s)</summary>
-      {% for s in pas_pretes %}
-      <div class="pl-row">
-        <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
-        <div class="t"><a href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>
-          <div class="small muted">{{ s.numero() }} · {{ s.manque_pour_etre_prete(dor_commune) }}</div></div>
-        <a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=s.id) }}">Compléter &rarr;</a>
-      </div>
-      {% endfor %}
-    </details>
-    {% endif %}
   </div>
 
   <div class="card">
