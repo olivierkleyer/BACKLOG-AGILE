@@ -17,6 +17,9 @@
 .ens-st{--c:#64748b;font-size:10.5px;font-family:var(--mono,monospace);font-weight:700;padding:3px 6px;border:1.5px solid var(--c);color:var(--c);border-radius:4px;text-decoration:none;background:white}
 .ens-st:hover{background:var(--c);color:white}
 .ens-vide{font-size:12px;color:var(--gray-500)}
+.ens-t{display:inline-block;margin-left:5px;padding:0 4px;border-radius:3px;background:var(--c);color:white;font-size:9.5px}
+.ens-st:hover .ens-t{background:white;color:var(--c)}
+.ens-legende{font-size:11px;color:var(--gray-500);margin:-6px 0 12px}
 .cal-form{display:grid;grid-template-columns:repeat(3,minmax(0,200px)) auto;gap:14px;align-items:start}
 .cal-form>.btn{margin-top:19px}
 .cal-fin{font-size:12px;color:var(--gray-700);margin-top:2px}
@@ -141,19 +144,20 @@ tr.courant td{background:var(--blue-ll)}
 {% if ensemble %}
 <div class="card" id="ensemble">
   <div class="card-title">Vue d'ensemble · releases, features et stories</div>
+  <p class="ens-legende">Chaque étiquette est une story (couleur = nature) ; le petit chiffre = son nombre de tâches. Cliquez pour ouvrir la fiche.</p>
   {% for e in ensemble %}
   <div class="ens-rel">
     {% if e.cal %}<div class="ens-bar rc{{ e.cal.i % 6 }}"><span>{{ e.cal.r.nom }} <small>· S{{ e.cal.s1 }}{% if e.cal.s2 > e.cal.s1 %}→S{{ e.cal.s2 }}{% endif %}</small></span>
     {% else %}<div class="ens-bar sans"><span>Sans release</span>{% endif %}
-      <small>{{ e.features|length }} feature{{ 's' if e.features|length > 1 }} · {{ e.nb_stories }} stor{{ 'ies' if e.nb_stories > 1 else 'y' }} · {{ e.points|fmt }} pts</small></div>
+      <small>{{ e.features|length }} feature{{ 's' if e.features|length > 1 }} · {{ e.nb_stories }} stor{{ 'ies' if e.nb_stories > 1 else 'y' }} · {{ e.nb_taches }} tâche{{ 's' if e.nb_taches > 1 }} · {{ e.points|fmt }} pts</small></div>
     {% if e.features %}
     <div class="ens-feats">
       {% for x in e.features %}
       <div class="ens-feat">
         <a class="ens-feat-nom" href="{{ url_for('backlog') }}#feature-{{ x.f.id }}">{{ x.f.nom }}</a>
-        <div class="ens-feat-nb">{{ x.stories|length }} stor{{ 'ies' if x.stories|length > 1 else 'y' }}</div>
+        <div class="ens-feat-nb">{{ x.stories|length }} stor{{ 'ies' if x.stories|length > 1 else 'y' }}{% set n_t = namespace(v=0) %}{% for st in x.stories %}{% set n_t.v = n_t.v + st.taches|length %}{% endfor %} · {{ n_t.v }} tâche{{ 's' if n_t.v > 1 }}</div>
         <div class="ens-stories">
-          {% for st in x.stories %}<a class="ens-st" style="--c:{{ nat(st.nature).couleur }}" href="{{ url_for('story', sid=st.id) }}" title="{{ nat(st.nature).nom }} · {{ st.titre }}">{{ st.numero() }}</a>{% else %}<span class="ens-vide">aucune story</span>{% endfor %}
+          {% for st in x.stories %}<a class="ens-st" style="--c:{{ nat(st.nature).couleur }}" href="{{ url_for('story', sid=st.id) }}" title="{{ nat(st.nature).nom }} · {{ st.titre }} · {{ st.taches|length }} tâche(s)">{{ st.numero() }}{% if st.taches %}<span class="ens-t">{{ st.taches|length }}</span>{% endif %}</a>{% else %}<span class="ens-vide">aucune story</span>{% endfor %}
         </div>
       </div>
       {% endfor %}

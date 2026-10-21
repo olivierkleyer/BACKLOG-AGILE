@@ -1089,7 +1089,7 @@ def sprints():
     def bloc(fs):
         fs = [{'f': f, 'stories': sorted(f.stories, key=lambda s: (s.ordre, s.id))} for f in fs]
         st = [s for x in fs for s in x['stories']]
-        return {'features': fs, 'nb_stories': len(st), 'points': sum(s.points or 0 for s in st)}
+        return {'features': fs, 'nb_stories': len(st), 'nb_taches': sum(len(s.taches) for s in st), 'points': sum(s.points or 0 for s in st)}
     ensemble = [dict(bloc([f for f in feats if f.release_id == c['r'].id]), cal=c) for c in cal]
     sans = [f for f in feats if not f.release_id]
     if sans: ensemble.append(dict(bloc(sans), cal=None))
