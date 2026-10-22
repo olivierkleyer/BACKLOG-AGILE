@@ -2,7 +2,7 @@
 {% from '_porteurs.html' import porteurs with context %}
 {% block title %}Product backlog{% endblock %}
 {% block page_title %}Product backlog{% endblock %}
-{% block topbar_actions %}{% if est_po and (releases or stats.features) %}<a class="btn btn-success btn-sm js-viser" href="#nouvelle-feature">+ Nouvelle feature</a>{% endif %}{% endblock %}
+{% block topbar_actions %}{% if stats.stories %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog_export') }}" title="Version imprimable du backlog, à enregistrer en PDF">Exporter en PDF</a> {% endif %}{% if est_po and (releases or stats.features) %}<a class="btn btn-success btn-sm js-viser" href="#nouvelle-feature">+ Nouvelle feature</a>{% endif %}{% endblock %}
 {% block extra_css %}
 <style>
 .ajout-titre{font-size:12px;font-weight:700;color:var(--gray-500);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.5px}

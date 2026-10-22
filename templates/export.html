@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>backlog-{{ projet.nom }}</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700;800&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--navy:#1a2744;--blue:#2563eb;--green:#16a34a;--amber:#d97706;--g50:#f8fafc;--g100:#f1f5f9;--g200:#e2e8f0;--g300:#cbd5e1;--g500:#64748b;--g700:#334155;--g900:#0f172a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'DM Sans',sans-serif;color:var(--g900);background:var(--g100);font-size:12.5px;line-height:1.45}
+.barre{position:sticky;top:0;z-index:5;background:var(--navy);color:white;padding:12px 16px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.barre label{font-size:12px;opacity:.8}
+.barre input{padding:8px 10px;border-radius:8px;border:0;font:inherit;font-size:14px;min-width:240px}
+.barre .aide{font-size:12px;opacity:.75;flex-basis:100%}
+.btn{display:inline-block;padding:8px 14px;border-radius:8px;font:inherit;font-size:13px;font-weight:700;border:0;cursor:pointer;text-decoration:none}
+.btn-ok{background:var(--green);color:white}.btn-sec{background:rgba(255,255,255,.15);color:white}
+.feuille{max-width:820px;margin:20px auto;background:white;padding:36px 40px;box-shadow:0 2px 12px rgba(0,0,0,.08)}
+h1{font-size:22px;color:var(--navy);font-weight:800}
+.meta{display:flex;gap:18px;flex-wrap:wrap;color:var(--g500);margin-top:6px;font-size:12px}
+.meta b{color:var(--g900)}
+.auteur-vide{color:#dc2626;font-weight:700}
+.vision{margin-top:14px;padding:10px 14px;background:var(--g50);border-left:4px solid var(--blue);white-space:pre-wrap}
+.chiffres{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin:18px 0 6px}
+.chiffres div{border:1px solid var(--g200);border-radius:8px;padding:8px;text-align:center}
+.chiffres b{display:block;font-size:18px;color:var(--navy)}
+.chiffres span{font-size:10.5px;color:var(--g500)}
+h2{font-size:16px;color:white;background:var(--navy);padding:7px 12px;border-radius:6px;margin:26px 0 10px;display:flex;justify-content:space-between;gap:10px;break-after:avoid}
+h2 small{font-weight:500;opacity:.8;font-size:11.5px}
+.rel-obj{margin:-4px 0 10px;color:var(--g700)}
+h3{font-size:14px;color:var(--navy);border-bottom:2px solid var(--g200);padding-bottom:4px;margin:16px 0 8px;display:flex;justify-content:space-between;break-after:avoid}
+h3 small{color:var(--g500);font-weight:500;font-size:11.5px}
+.story{border:1px solid var(--g200);border-left:4px solid var(--c);border-radius:6px;padding:9px 12px;margin-bottom:8px;break-inside:avoid}
+.st-tete{display:flex;justify-content:space-between;gap:10px;align-items:baseline}
+.st-titre{font-weight:700;font-size:13px}
+.st-id{font-family:'DM Mono',monospace;font-size:11px;color:var(--g500);margin-right:6px}
+.tags{display:flex;gap:4px;flex-wrap:wrap;justify-content:flex-end;flex-shrink:0}
+.tag{font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:99px;background:var(--g100);color:var(--g700);white-space:nowrap}
+.tag.p1{background:#fee2e2;color:#b91c1c}.tag.ok{background:#dcfce7;color:#15803d}.tag.ko{background:#fef3c7;color:#b45309}
+.nat{font-size:10.5px;color:var(--c);font-weight:700;margin-top:1px}
+.champ{margin-top:5px}
+.champ dt{font-size:10.5px;font-weight:700;color:var(--g500);text-transform:uppercase;letter-spacing:.4px}
+.champ dd{white-space:pre-wrap}
+.vide{color:#dc2626;font-style:italic}
+.taches{margin-top:5px;padding-left:16px;color:var(--g700)}
+table{width:100%;border-collapse:collapse;margin-top:6px}
+th,td{border:1px solid var(--g200);padding:5px 8px;text-align:left;vertical-align:top}
+th{background:var(--g50);font-size:11px;color:var(--g500)}
+td.n{text-align:right;white-space:nowrap}
+.listes{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.listes ul{padding-left:16px}
+.aucun{color:var(--g500);font-style:italic}
+@media(max-width:700px){.feuille{padding:20px 16px;margin:0}.chiffres{grid-template-columns:repeat(3,1fr)}.listes{grid-template-columns:1fr}.barre input{min-width:0;flex:1}}
+@page{size:A4;margin:14mm 12mm}
+@media print{
+  body{background:white;font-size:11.5px}
+  .barre{display:none}
+  .feuille{max-width:none;margin:0;padding:0;box-shadow:none}
+  *{-webkit-print-color-adjust:exact;print-color-adjust:exact}
+}
+</style>
+</head>
+<body>
+<div class="barre">
+  <label for="auteur">Votre nom</label>
+  <input id="auteur" placeholder="Prénom NOM (obligatoire)" autocomplete="name">
+  <button class="btn btn-ok" type="button" id="imprimer">Enregistrer en PDF</button>
+  <a class="btn btn-sec" href="{{ url_for('backlog') }}">Retour au backlog</a>
+  <div class="aide">Dans la fenêtre qui s'ouvre, choisissez « Enregistrer au format PDF » comme imprimante.</div>
+</div>
+
+<div class="feuille">
+  <h1>{{ projet.nom }}</h1>
+  <div class="meta">
+    <span>Auteur : <b id="auteur-aff" class="auteur-vide">à renseigner</b></span>
+    <span>Export du {{ date_export }}</span>
+  </div>
+  {% if projet.vision %}<div class="vision">{{ projet.vision }}</div>{% endif %}
+
+  <div class="chiffres">
+    <div><b>{{ stats.releases }}</b><span>releases</span></div>
+    <div><b>{{ stats.features }}</b><span>features</span></div>
+    <div><b>{{ stats.stories }}</b><span>stories</span></div>
+    <div><b>{{ stats.points|fmt }}</b><span>points</span></div>
+    <div><b>{{ stats.pretes }}</b><span>prêtes (DoR)</span></div>
+    <div><b>{{ stats.non_estimees }}</b><span>non estimées</span></div>
+  </div>
+
+  {% for g in groupes %}
+  <h2>{% if g.cal %}{{ g.cal.r.nom }}<small>S{{ g.cal.s1 }}{% if g.cal.s2 != g.cal.s1 %} à S{{ g.cal.s2 }}{% endif %}{% if g.cal.debut %} · {{ g.cal.debut.strftime('%d/%m') }} – {{ g.cal.fin.strftime('%d/%m/%Y') }}{% endif %} · {{ g.nb }} stories · {{ g.points|fmt }} pts</small>{% else %}Features sans release<small>{{ g.nb }} stories · {{ g.points|fmt }} pts</small>{% endif %}</h2>
+  {% if g.cal and g.cal.r.objectif %}<p class="rel-obj"><b>Objectif :</b> {{ g.cal.r.objectif }}</p>{% endif %}
+  {% for b in g.blocs %}
+  <h3>{{ b.f.nom }}<small>{{ b.stories|length }} stories · {{ b.points|fmt }} pts</small></h3>
+  {% for s in b.stories %}{% set n = nat(s.nature) %}
+  <div class="story" style="--c:{{ n.couleur }}">
+    <div class="st-tete">
+      <div><span class="st-id">{{ s.numero() }}</span><span class="st-titre">{{ s.titre }}</span>
+        <div class="nat">{{ n.nom }}{% if s.parent %} · rattachée à {{ s.parent.numero() }} {{ s.parent.titre }}{% endif %}</div></div>
+      <div class="tags">
+        <span class="tag {{ 'p1' if s.priorite == 'P1' }}">{{ s.priorite }}</span>
+        <span class="tag">{{ (s.points|fmt ~ ' pts') if s.points else 'non estimée' }}</span>
+        <span class="tag">{{ ('S' ~ s.sprint) if s.sprint else 'non planifiée' }}</span>
+        {% if s.est_prete(dor_commune) %}<span class="tag ok">Prête</span>{% else %}<span class="tag ko">Pas prête</span>{% endif %}
+      </div>
+    </div>
+    <dl>
+    {% if s.nature == 'us' %}
+      <div class="champ"><dt>Récit</dt><dd>{% if s.en_tant_que or s.besoin or s.pour %}En tant que {{ s.en_tant_que or '…' }}, j'ai besoin de {{ s.besoin or '…' }}, pour {{ s.pour or '…' }}{% else %}<span class="vide">Non rédigé</span>{% endif %}</dd></div>
+    {% elif s.nature == 'bug' %}
+      <div class="champ"><dt>Comportement observé</dt><dd>{{ s.observe or '' }}{% if not s.observe %}<span class="vide">Non renseigné</span>{% endif %}</dd></div>
+      <div class="champ"><dt>Comportement attendu</dt><dd>{{ s.attendu or '' }}{% if not s.attendu %}<span class="vide">Non renseigné</span>{% endif %}</dd></div>
+    {% else %}
+      <div class="champ"><dt>Description</dt><dd>{{ s.description or '' }}{% if not s.description %}<span class="vide">Non renseignée</span>{% endif %}</dd></div>
+    {% endif %}
+      <div class="champ"><dt>Critères d'acceptation</dt><dd>{{ s.criteres or '' }}{% if not s.criteres %}<span class="vide">Aucun</span>{% endif %}</dd></div>
+    {% if s.taches %}
+      <div class="champ"><dt>Tâches</dt><dd><ul class="taches">{% for t in s.taches %}<li>{{ t.titre }}{% if t.heures %} ({{ t.heures|fmt }} h){% endif %}</li>{% endfor %}</ul></dd></div>
+    {% endif %}
+    </dl>
+  </div>
+  {% else %}<p class="aucun">Aucune story.</p>{% endfor %}
+  {% else %}<p class="aucun">Aucune feature.</p>{% endfor %}
+  {% else %}
+  <p class="aucun" style="margin-top:20px">Le backlog est vide.</p>
+  {% endfor %}
+
+  {% if sprints %}
+  <h2>Sprints planifiés</h2>
+  <table>
+    <tr><th>Sprint</th><th>Objectif</th><th>Stories</th><th>Points</th><th>Capacité</th></tr>
+    {% for sp in sprints %}
+    <tr><td>S{{ sp.n }}</td><td>{{ sp.objectif or '' }}{% if not sp.objectif %}<span class="vide">Non défini</span>{% endif %}</td><td class="n">{{ sp.nb }}</td><td class="n">{{ sp.points|fmt }}</td><td class="n">{{ (sp.capacite|fmt) if sp.capacite else '–' }}</td></tr>
+    {% endfor %}
+  </table>
+  {% endif %}
+
+  <h2>Definition of Ready et Definition of Done</h2>
+  <div class="listes">
+    <div><b>DoR commune</b>{% if dor_commune %}<ul>{% for l in dor_commune %}<li>{{ l }}</li>{% endfor %}</ul>{% else %}<p class="aucun">Aucune</p>{% endif %}</div>
+    <div><b>DoD commune</b>{% if dod_commune %}<ul>{% for l in dod_commune %}<li>{{ l }}</li>{% endfor %}</ul>{% else %}<p class="aucun">Aucune</p>{% endif %}</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  var champ = document.getElementById('auteur'), aff = document.getElementById('auteur-aff');
+  var produit = {{ projet.nom|tojson }};
+  function lire(){ try { return localStorage.getItem('export-auteur') || ''; } catch(e) { return ''; } }
+  function maj(){
+    var v = champ.value.trim();
+    aff.textContent = v || 'à renseigner';
+    aff.classList.toggle('auteur-vide', !v);
+    // le titre de la page sert de nom de fichier PDF par defaut
+    document.title = ('backlog-' + produit + (v ? '-' + v : '')).replace(/[\\/:*?"<>|]+/g, '-');
+    try { localStorage.setItem('export-auteur', v); } catch(e) {}
+  }
+  champ.value = lire(); maj();
+  champ.addEventListener('input', maj);
+  document.getElementById('imprimer').addEventListener('click', function(){
+    if (!champ.value.trim()) { champ.focus(); alert('Indiquez votre nom avant d\'enregistrer le PDF.'); return; }
+    window.print();
+  });
+})();
+</script>
+</body>
+</html>

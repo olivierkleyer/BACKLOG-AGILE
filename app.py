@@ -733,6 +733,41 @@ def backlog():
                            releases=Release.query.order_by(Release.ordre, Release.id).all(), cal_rel=cal,
                            responsables=responsables_connus())
 
+@app.route('/backlog/export')
+@connecte
+def backlog_export():
+    """Version imprimable du product backlog, a enregistrer en PDF depuis le navigateur."""
+    p = get_projet()
+    prio_rang = {k: i for i, k in enumerate(PRIORITES)}
+    def bloc(f):
+        st = sorted(f.stories, key=lambda s: (prio_rang.get(s.priorite, 9), s.ordre, s.id))
+        return {'f': f, 'stories': st, 'points': sum(s.points or 0 for s in st)}
+    features = Feature.query.order_by(Feature.ordre, Feature.id).all()
+    groupes = []
+    for c in calendrier_releases(p):
+        fs = [bloc(f) for f in features if f.release_id == c['r'].id]
+        groupes.append({'cal': c, 'blocs': fs, 'points': sum(b['points'] for b in fs),
+                        'nb': sum(len(b['stories']) for b in fs)})
+    sans = [bloc(f) for f in features if not f.release_id]
+    if sans:
+        groupes.append({'cal': None, 'blocs': sans, 'points': sum(b['points'] for b in sans),
+                        'nb': sum(len(b['stories']) for b in sans)})
+    toutes = Story.query.all()
+    planifies = sorted({s.sprint for s in toutes if s.sprint})
+    sprints = []
+    for n in planifies:
+        sp = Sprint.query.filter_by(numero=n).first()
+        st = [s for s in toutes if s.sprint == n]
+        sprints.append({'n': n, 'objectif': sp.objectif if sp else '', 'capacite': sp.capacite if sp else 0,
+                        'points': sum(s.points or 0 for s in st), 'nb': len(st)})
+    stats = {'releases': Release.query.count(), 'features': len(features), 'stories': len(toutes),
+             'points': sum(s.points or 0 for s in toutes),
+             'pretes': sum(1 for s in toutes if s.est_prete(p.dor_commune)),
+             'non_estimees': sum(1 for s in toutes if not s.points)}
+    return render_template('export.html', groupes=groupes, sprints=sprints, stats=stats,
+                           dor_commune=p.dor_commune, dod_commune=p.dod_commune,
+                           date_export=datetime.now(ZoneInfo('Europe/Paris')).strftime('%d/%m/%Y à %H:%M'))
+
 def release_valide(v):
     try: v = int(v)
     except (TypeError, ValueError): return None

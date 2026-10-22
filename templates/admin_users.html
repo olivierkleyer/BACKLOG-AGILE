@@ -34,6 +34,7 @@
   <p class="small muted" style="margin-bottom:12px">Les données de l'appli peuvent disparaître (mise en veille ou redéploiement de l'hébergement). <b>Sauvegardez à la pause et en fin de séance</b> : le fichier téléchargé contient tout (calendrier, releases, features, stories, tâches, RACI, DoR/DoD, revues, rétros), sauf les pièces jointes. Pour reprendre, restaurez-le : la session actuelle est remplacée.</p>
   <div style="display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end">
     <a class="btn btn-success" href="{{ url_for('sauvegarde') }}">&#11015; Télécharger la sauvegarde</a>
+    <a class="btn btn-ghost" href="{{ url_for('backlog_export') }}" title="Version lisible du backlog, à enregistrer en PDF">Exporter le backlog en PDF</a>
     <form method="post" action="{{ url_for('restauration') }}" enctype="multipart/form-data" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
       <input type="file" name="fichier" accept=".json,application/json" required style="max-width:260px">
       <button class="btn btn-primary btn-sm">Restaurer ce fichier</button></form>

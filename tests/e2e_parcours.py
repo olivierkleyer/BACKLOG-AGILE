@@ -226,6 +226,16 @@ with sync_playwright() as pw:
             r = po.goto(U + path); assert r.status == 200, (path, r.status)
     etape(po, '19 exemple ROBO AGRI + toutes les pages', s19)
 
+    def s19b():
+        po.goto(U + '/backlog'); po.click('text=Exporter en PDF'); po.wait_for_load_state()
+        assert '/backlog/export' in po.url
+        assert po.locator('.story').count() == 17, po.locator('.story').count()
+        assert po.locator('h2', has_text='Sprints planifiés').count() == 1
+        po.fill('#auteur', 'Test ÉTUDIANT'); assert 'Test ÉTUDIANT' in po.title()
+        assert po.inner_text('#auteur-aff') == 'Test ÉTUDIANT'
+        po.emulate_media(media='print'); po.pdf(path=f'{OUT}/export.pdf', format='A4'); po.emulate_media(media='screen')
+    etape(po, '19b export PDF du backlog', s19b)
+
     def s20():
         r = po.goto(U + '/story/9999'); assert r.status == 404
         r = po.goto(U + '/kanban?sprint=99'); assert r.status == 200
