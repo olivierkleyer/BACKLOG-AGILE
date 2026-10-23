@@ -1,5 +1,6 @@
 {% extends 'base.html' %}
 {% from '_porteurs.html' import porteurs with context %}
+{% from '_message.html' import bulle with context %}
 {% set N = nat(s.nature) %}
 {% block title %}{{ s.numero() }} · {{ s.titre }}{% endblock %}
 {% block page_title %}<span class="nat-badge" style="--c:{{ N.couleur }}">{{ N.nom }}</span> <span class="mono muted" style="font-size:13px">{{ s.numero() }}</span> &nbsp;{{ s.titre }}{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% endblock %}
@@ -252,6 +253,16 @@
 {% if supprimable %}
 <form id="suppr" method="post" action="{{ url_for('story_supprimer', sid=s.id) }}" onsubmit="return confirm('Supprimer définitivement cette story, ses tâches et ses pièces jointes ?')"></form>
 {% endif %}
+
+<div class="card" id="echanges">
+  <div class="card-title">Échanges sur cette story <span class="small muted" style="text-transform:none;letter-spacing:0;font-weight:500">· {{ s.messages|length }} message(s)</span></div>
+  {% if s.messages %}<div class="fil">{% for m in s.messages %}{{ bulle(m) }}{% endfor %}</div>{% endif %}
+  <form class="msg-form" method="post" action="{{ url_for('message_envoyer') }}">
+    <input type="hidden" name="story_id" value="{{ s.id }}"><input type="hidden" name="retour" value="story">
+    <textarea name="texte" rows="2" maxlength="2000" placeholder="{{ "Message à l'équipe" if est_po else 'Message au PO' }} à propos de cette story (demande de suppression, précision…)" required></textarea>
+    <button class="btn btn-primary btn-sm">Envoyer</button>
+  </form>
+</div>
 
 <div class="card taches repliable {{ 'replie' if not s.sprint and not s.taches }}" id="taches">
   <div class="repli-tete"><div class="card-title">Tâches de la story</div>

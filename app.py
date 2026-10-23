@@ -1,5 +1,5 @@
 from flask import Flask, render_template, request, redirect, url_for, session, jsonify, flash, abort, Response
-from datetime import datetime, timedelta, date
+from datetime import datetime, timedelta, date, timezone
 from collections import defaultdict
 from functools import wraps
 from flask_sqlalchemy import SQLAlchemy
@@ -105,6 +105,11 @@ def fmt(n):
     """Affiche 3 plutot que 3.0"""
     return int(n) if float(n).is_integer() else n
 app.jinja_env.filters['fmt'] = fmt
+def heure_locale(d):
+    """Date UTC stockee -> « 23/10 à 10:45 », heure de Paris"""
+    if not d: return ''
+    return d.replace(tzinfo=timezone.utc).astimezone(ZoneInfo('Europe/Paris')).strftime('%d/%m à %H:%M')
+app.jinja_env.filters['heure'] = heure_locale
 app.jinja_env.filters['fromjson_list'] = lambda t: lire_json(t, [])
 
 # ---------------------------------------------------------------- Modele
@@ -115,6 +120,7 @@ class User(db.Model):
     role = db.Column(db.String(20), default='equipe')   # 'po' ou 'equipe'
     nom_complet = db.Column(db.String(120), default='')
     prenom = db.Column(db.String(40), default='')         # affiche sur les cartes a la place de l'identifiant
+    messages_vus_le = db.Column(db.DateTime, nullable=True)  # derniere visite de la page Messages
     def set_password(self, p): self.password_hash = generate_password_hash(p)
     def check_password(self, p): return check_password_hash(self.password_hash, p)
 
@@ -195,6 +201,8 @@ class Story(db.Model):
     updated_at = db.Column(db.DateTime, default=datetime.utcnow)
     taches = db.relationship('Tache', backref='story', cascade='all, delete-orphan', lazy=True,
                              order_by='Tache.id')
+    messages = db.relationship('Message', backref='story', cascade='all, delete-orphan', lazy=True,
+                               order_by='Message.id')
 
     @property
     def dod(self): return lire_json(self.dod_json, [])
@@ -261,14 +269,20 @@ class Story(db.Model):
         return role == 'po'
 
     def supprimable_par(self, username, role):
-        """Seul l'auteur supprime : le PO ses stories ; un dev les siennes tant qu'elles ne sont ni planifiees ni commencees."""
-        if not self.redigeable_par(username, role):
-            return False
-        return role == 'po' or (not self.sprint and self.statut == 'A faire' and not self.taches)
+        """Seul l'auteur supprime : le PO ses stories, un dev les siennes."""
+        return self.redigeable_par(username, role)
 
     def numero(self):
         prefixe = next((n['prefixe'] for n in NATURES_BASE if n['code'] == self.nature), 'ST')
         return '{}-{:03d}'.format(prefixe, self.id)
+
+class Message(db.Model):
+    """Echange entre le PO et l'equipe : general (story_id vide) ou a propos d'une story."""
+    id = db.Column(db.Integer, primary_key=True)
+    story_id = db.Column(db.Integer, db.ForeignKey('story.id'), nullable=True)
+    auteur = db.Column(db.String(80), nullable=False)
+    texte = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 class PieceJointe(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -388,11 +402,32 @@ def synchroniser_sprints(n):
             db.session.add(Sprint(numero=i))
     db.session.commit()
 
+def ajouter_colonnes_manquantes():
+    """Base creee par une version precedente : ajoute les colonnes nouvelles (valeur par defaut du modele)."""
+    insp = db.inspect(db.engine)
+    for table in db.metadata.sorted_tables:
+        if not insp.has_table(table.name, schema=table.schema):
+            continue
+        existantes = {c['name'] for c in insp.get_columns(table.name, schema=table.schema)}
+        for col in table.columns:
+            if col.name in existantes:
+                continue
+            type_sql = col.type.compile(dialect=db.engine.dialect)
+            defaut = col.default.arg if col.default is not None and not callable(col.default.arg) else None
+            if isinstance(defaut, bool): defaut = int(defaut) if db.engine.dialect.name == 'sqlite' else str(defaut).upper()
+            elif isinstance(defaut, str): defaut = "'" + defaut.replace("'", "''") + "'"
+            sql = 'ALTER TABLE {} ADD COLUMN "{}" {}'.format(('"{}".'.format(table.schema) if table.schema else '') + '"{}"'.format(table.name), col.name, type_sql)
+            if defaut is not None: sql += ' DEFAULT {}'.format(defaut)
+            with db.engine.begin() as cx:
+                cx.execute(text(sql))
+            print('Base mise a niveau : colonne {}.{} ajoutee'.format(table.name, col.name), flush=True)
+
 def init_db():
     if DB_SCHEMA:
         with db.engine.begin() as cx:
             cx.execute(text('CREATE SCHEMA IF NOT EXISTS "{}"'.format(DB_SCHEMA)))
     db.create_all()
+    ajouter_colonnes_manquantes()
     p = get_projet()
     if not p.instance_id:
         p.instance_id = secrets.token_hex(8); db.session.commit()
@@ -460,9 +495,20 @@ def contexte():
     p = get_projet()
     nats = natures(p)
     return {'projet': p, 'est_po': est_po(), 'STATUTS': STATUTS, 'PRIORITES': PRIORITES,
+            'nb_non_lus': messages_non_lus(),
             'parcours': parcours(p), 'NATURES': nats, 'PERSONNES': personnes(),
             'court': lambda u: next((x['court'] for x in personnes() if x['id'] == u), u),
             'nat': lambda code: next((n for n in nats if n['code'] == code), nature_info(p, code))}
+
+def utilisateur_courant():
+    return db.session.get(User, session.get('user_id')) if 'user_id' in session else None
+
+def messages_non_lus():
+    u = utilisateur_courant()
+    if not u: return 0
+    q = Message.query.filter(Message.auteur != u.username)
+    if u.messages_vus_le: q = q.filter(Message.created_at > u.messages_vus_le)
+    return q.count()
 
 def sprint_joue(p, stories):
     """Un sprint est joue quand il a atteint son dernier jour simule ou que toutes ses stories sont faites."""
@@ -832,6 +878,11 @@ def feature_deplacer(fid, sens):
 @po_requis
 def feature_supprimer(fid):
     f = db.get_or_404(Feature, fid)
+    dev = [x for x in f.stories if x.proposee_par_equipe()]
+    if dev:
+        flash("Feature « {} » non supprimée : elle contient {} story(s) proposée(s) par l'équipe ({}). Demandez à leurs auteurs de les supprimer ou de les déplacer.".format(
+            f.nom, len(dev), ', '.join(sorted({x.auteur for x in dev}))), 'error')
+        return redirect(url_for('backlog') + '#feature-{}'.format(f.id))
     db.session.delete(f); db.session.commit()
     flash('Feature « {} » supprimée avec ses stories'.format(f.nom), 'success')
     return redirect(url_for('backlog'))
@@ -892,6 +943,11 @@ def story(sid):
         for u, niv in zip(fm.getlist('raci_acteur'), fm.getlist('raci_niveau')):
             if u in ids and niv in RACI_ROLES: raci[u] = niv
         erreur_raci = valider_raci(raci)
+        if not erreur_raci and s.proposee_par_equipe() and session.get('username') != s.auteur:
+            a_avant, _ = s.porteurs()
+            a_apres = next((u for u, v in raci.items() if 'A' in v), None)
+            if a_apres != a_avant:
+                erreur_raci = "RACI non modifié : l'Accountable d'une story proposée par {} ne peut être changé que par lui.".format(s.auteur)
         if not erreur_raci:
             s.raci_json = json.dumps(raci)
             a, rs = s.porteurs()
@@ -971,7 +1027,7 @@ def parents_possibles(s):
 def story_supprimer(sid):
     s = db.get_or_404(Story, sid)
     if not s.supprimable_par(session.get('username'), session.get('role')):
-        flash("Suppression réservée à l'auteur de la story (le PO pour ses stories ; un dev pour les siennes, tant qu'elles ne sont ni planifiées ni commencées).", 'error')
+        flash("Suppression réservée à l'auteur de la story ({}).".format(s.auteur if s.proposee_par_equipe() else 'le PO'), 'error')
         return redirect(url_for('story', sid=s.id))
     for e in s.enfants: e.parent_id = None
     db.session.delete(s); db.session.commit()
@@ -1215,6 +1271,11 @@ def release_deplacer(rid, sens):
 @po_requis
 def release_supprimer(rid):
     r = db.get_or_404(Release, rid)
+    dev = [x for f in r.features for x in f.stories if x.proposee_par_equipe()]
+    if dev:
+        flash("Release « {} » non supprimée : ses features contiennent {} story(s) proposée(s) par l'équipe ({}). Demandez à leurs auteurs de les supprimer ou de les déplacer.".format(
+            r.nom, len(dev), ', '.join(sorted({x.auteur for x in dev}))), 'error')
+        return redirect(url_for('sprints') + '#releases')
     for f in r.features: f.release_id = None
     db.session.delete(r); db.session.commit()
     flash('Release « {} » supprimée (ses features sont conservées, sans release)'.format(r.nom), 'success')
@@ -1349,7 +1410,7 @@ def reset_all():
         flash('Tapez VIDER pour confirmer la réinitialisation', 'error')
         return redirect(retour_ou(url_for('admin_users')))
     Retour.query.delete(); Revue.query.delete(); PostIt.query.delete(); ActionAmelioration.query.delete(); Retro.query.delete()
-    PieceJointe.query.delete(); Tache.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
+    PieceJointe.query.delete(); Tache.query.delete(); Message.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     for s in Sprint.query.all(): s.objectif = ''; s.capacite = 0; s.jour_courant = 1
     db.session.commit()
     flash('Backlog vidé : releases, features, stories, tâches, revues et rétros supprimées. Le calendrier, la DoR, la DoD et les comptes sont conservés : repartez de l\'étape 2 (Releases).', 'success')
@@ -1359,11 +1420,37 @@ def retour_ou(defaut):
     r = request.form.get('retour', '')
     return r if r.startswith('/') and not r.startswith('//') else defaut
 
+# ---------------------------------------------------------------- Messages PO <-> equipe
+@app.route('/messages')
+@connecte
+def messages():
+    liste = Message.query.order_by(Message.id.desc()).limit(300).all()
+    u = utilisateur_courant()
+    vu_avant = u.messages_vus_le or datetime(2000, 1, 1)
+    u.messages_vus_le = datetime.utcnow(); db.session.commit()
+    stories = Story.query.order_by(Story.id).all()
+    return render_template('messages.html', liste=liste, vu_avant=vu_avant, stories=stories,
+                           sid_choisie=request.args.get('story', type=int))
+
+@app.route('/messages/envoyer', methods=['POST'])
+@connecte
+def message_envoyer():
+    texte = request.form.get('texte', '').strip()[:2000]
+    sid = request.form.get('story_id', type=int)
+    s = db.session.get(Story, sid) if sid else None
+    if texte:
+        db.session.add(Message(story_id=s.id if s else None, auteur=session.get('username', ''), texte=texte))
+        db.session.commit()
+        flash('Message envoyé', 'success')
+    if request.form.get('retour') == 'story' and s:
+        return redirect(url_for('story', sid=s.id) + '#echanges')
+    return redirect(url_for('messages'))
+
 # ---------------------------------------------------------------- Sauvegarde / restauration
 SAUVEGARDE_VERSION = 1
 def modeles_sauvegardes():
     # ordre d'insertion : parents avant enfants (les pieces jointes ne sont pas sauvegardees)
-    return [Projet, Sprint, Release, Feature, Story, Tache, Revue, Retour, Retro, PostIt, ActionAmelioration]
+    return [Projet, Sprint, Release, Feature, Story, Tache, Message, Revue, Retour, Retro, PostIt, ActionAmelioration]
 
 def ligne_vers_dict(obj):
     out = {}
@@ -1456,7 +1543,7 @@ def charger_exemple():
         flash("Tapez EXEMPLE pour confirmer le chargement de l'exemple", 'error')
         return redirect(url_for('admin_users'))
     Retour.query.delete(); Revue.query.delete(); PostIt.query.delete(); ActionAmelioration.query.delete(); Retro.query.delete()
-    PieceJointe.query.delete(); Tache.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
+    PieceJointe.query.delete(); Tache.query.delete(); Message.query.delete(); Story.query.update({'parent_id': None}); Story.query.delete(); Feature.query.delete(); Release.query.delete()
     p = get_projet()
     p.nom = ex.PRODUIT['nom']; p.vision = ex.PRODUIT['vision']
     p.nb_sprints = ex.PRODUIT['nb_sprints']; p.duree_semaines = ex.PRODUIT['duree_semaines']

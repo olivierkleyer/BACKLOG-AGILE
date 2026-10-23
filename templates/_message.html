@@ -1,0 +1,7 @@
+{% macro bulle(m, montrer_story=False, nouveau=False) %}
+<div class="msg {{ 'moi' if m.auteur == session.username }} {{ 'po' if m.auteur == 'po' }} {{ 'nouveau' if nouveau }}">
+  <div class="msg-tete"><b>{{ 'PO' if m.auteur == 'po' else court(m.auteur) }}</b><span>{{ m.created_at|heure }}</span>
+    {% if montrer_story %}{% if m.story %}<a href="{{ url_for('story', sid=m.story.id) }}#echanges">{{ m.story.numero() }} {{ m.story.titre }}</a>{% else %}<span>message général</span>{% endif %}{% endif %}</div>
+  <div class="msg-texte">{{ m.texte }}</div>
+</div>
+{% endmacro %}

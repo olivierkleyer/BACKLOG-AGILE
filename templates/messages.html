@@ -1,0 +1,22 @@
+{% extends 'base.html' %}
+{% from '_message.html' import bulle with context %}
+{% block title %}Messages PO ↔ équipe{% endblock %}
+{% block page_title %}Messages PO ↔ équipe{% endblock %}
+{% block content %}
+<div class="card">
+  <div class="card-title">Écrire {{ "à l'équipe" if est_po else 'au PO' }}</div>
+  <p class="small muted" style="margin-bottom:12px">Pour discuter d'une story (demande de suppression, précision, priorité…), choisissez-la : le message apparaîtra aussi dans sa fiche. Tout le monde voit tous les messages.</p>
+  <form class="msg-form" method="post" action="{{ url_for('message_envoyer') }}">
+    <div class="field" style="margin:0;min-width:220px;flex:0 1 320px"><label>À propos de</label>
+      <select name="story_id"><option value="">Message général</option>{% for s in stories %}<option value="{{ s.id }}" {% if s.id == sid_choisie %}selected{% endif %}>{{ s.numero() }} · {{ s.titre[:60] }}</option>{% endfor %}</select></div>
+    <textarea name="texte" rows="2" maxlength="2000" placeholder="Votre message…" required></textarea>
+    <button class="btn btn-primary">Envoyer</button>
+  </form>
+</div>
+<div class="card">
+  <div class="card-title">Derniers messages</div>
+  {% if liste %}
+  <div class="fil">{% for m in liste %}{{ bulle(m, True, m.created_at > vu_avant and m.auteur != session.username) }}{% endfor %}</div>
+  {% else %}<p class="small muted">Aucun message pour l'instant.</p>{% endif %}
+</div>
+{% endblock %}

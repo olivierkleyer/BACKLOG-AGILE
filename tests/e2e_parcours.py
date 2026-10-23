@@ -190,6 +190,22 @@ with sync_playwright() as pw:
         assert po.locator('input[name=titre][disabled]').count() == 1, 'le PO peut rédiger la story du dev'
         assert po.locator('select[name=priorite][disabled]').count() == 0, 'le PO a perdu la priorité'
         assert po.locator('#suppr').count() == 0, 'le PO peut supprimer la story du dev'
+        # le PO ne peut supprimer ni la feature ni la release qui contiennent la story du dev
+        fid = po.locator('select[name=feature_id] option[selected]').get_attribute('value')
+        po.request.post(U + f'/feature/{fid}/supprimer', max_redirects=0); po.goto(U + '/backlog')
+        assert 'non supprimée' in ' '.join(alertes(po)), ('feature supprimée', alertes(po))
+        po.request.post(U + '/release/1/supprimer', max_redirects=0); po.goto(U + '/sprints')
+        assert 'non supprimée' in ' '.join(alertes(po)), ('release supprimée', alertes(po))
+        # messagerie : dev1 écrit au PO sur sa story, le PO voit le compteur puis le message
+        dev.goto(U + '/story/' + sid); dev.fill('#echanges textarea', 'Je propose de supprimer US-002 ?')
+        dev.click('#echanges button'); dev.wait_for_load_state()
+        assert dev.locator('#echanges .msg').count() == 1, 'message non affiché dans la fiche'
+        po.goto(U + '/backlog'); assert po.locator('.nav-badge').inner_text() == '1', 'compteur non lus absent'
+        po.click('text=Messages PO'); po.wait_for_load_state()
+        assert po.locator('.msg', has_text='Je propose de supprimer').count() == 1
+        po.fill('textarea[name=texte]', 'Vu, on en parle au daily'); po.click('form.msg-form button'); po.wait_for_load_state()
+        assert po.locator('.nav-badge').count() == 0, 'compteur PO non remis à zéro'
+        dev.goto(U + '/messages'); assert dev.locator('.msg', has_text='on en parle').count() == 1
         # le dev peut créer toute nature de story
         dev.goto(U + '/backlog'); f = dev.locator('form.ajout-story').first
         f.locator('select[name=nature]').select_option('bug'); f.locator('input[name=titre]').fill('Bug dev1')
@@ -202,7 +218,12 @@ with sync_playwright() as pw:
         login(dev, 'dev2', 'devdev'); dev.goto(U + '/story/' + sid)
         assert dev.locator('input[name=titre][disabled]').count() == 1, 'dev2 peut rédiger la story de dev1'
         assert dev.locator('#suppr').count() == 0, 'dev2 peut supprimer la story de dev1'
-        # l'auteur peut la supprimer tant qu'elle n'est pas commencée
+        # dev2 ne peut pas retirer l'Accountable de dev1
+        dev.request.post(U + '/story/' + sid, max_redirects=0, form={'raci_acteur': 'dev2', 'raci_niveau': 'RA', 'statut': 'A faire', 'sprint': '0'})
+        dev.goto(U + '/story/' + sid)
+        porteur = dev.locator('.card', has_text='Responsabilités').first.locator('.porteurs').inner_text()
+        assert 'dev1' in porteur and 'dev2' not in porteur, ('A de dev1 retiré par dev2', porteur)
+        # l'auteur peut la supprimer
         login(dev, 'dev1', 'devdev'); dev.goto(U + '/story/' + sid)
         dev.locator('button[form=suppr]').click(); dev.wait_for_load_state()
         assert 'supprimée' in dev.content(), 'suppression par l\'auteur refusée'
@@ -273,6 +294,14 @@ with sync_playwright() as pw:
         assert po.inner_text('#auteur-aff') == 'Test ÉTUDIANT'
         po.emulate_media(media='print'); po.pdf(path=f'{OUT}/export.pdf', format='A4'); po.emulate_media(media='screen')
     etape(po, '19b export PDF du backlog', s19b)
+
+    def s19c():
+        # apres remise a zero / exemple, un nouveau message doit encore compter comme non lu
+        login(dev, 'dev1', 'devdev'); dev.goto(U + '/messages')
+        dev.fill('textarea[name=texte]', 'Message après exemple'); dev.click('form.msg-form button'); dev.wait_for_load_state()
+        po.goto(U + '/backlog'); assert po.locator('.nav-badge').count() == 1, 'non lu ignoré après remise à zéro'
+        po.goto(U + '/messages'); assert po.locator('.msg.nouveau').count() == 1, 'nouveau message non signalé'
+    etape(po, '19c messages non lus après remise à zéro', s19c)
 
     def s20():
         r = po.goto(U + '/story/9999'); assert r.status == 404

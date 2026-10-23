@@ -64,6 +64,20 @@ table.data-table th.c,table.data-table td.c{text-align:center}
 table.data-table td{padding:8px 10px;border-bottom:1px solid var(--gray-100);vertical-align:middle}
 table.data-table tr:hover td{background:var(--blue-ll)}
 .table-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%}
+/* Messages PO <-> equipe */
+.fil{display:flex;flex-direction:column;gap:8px;margin-bottom:12px}
+.msg{max-width:78%;padding:8px 12px;border-radius:12px;background:var(--gray-100);font-size:13px;line-height:1.45;align-self:flex-start}
+.msg.moi{align-self:flex-end;background:var(--blue-ll);border:1px solid var(--blue-light)}
+.msg.po:not(.moi){background:var(--amber-light)}
+.msg.nouveau{box-shadow:0 0 0 2px var(--green)}
+.msg-tete{font-size:11px;color:var(--gray-500);margin-bottom:2px;display:flex;gap:8px;flex-wrap:wrap}
+.msg-tete b{color:var(--navy)}
+.msg-tete a{color:var(--blue);font-weight:600;text-decoration:none}
+.msg-texte{white-space:pre-wrap;word-break:break-word}
+.msg-form{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}
+.msg-form textarea{flex:1;min-width:220px}
+.nav-badge{margin-left:auto;background:var(--green);color:white;font-size:11px;font-weight:700;border-radius:99px;padding:1px 7px}
+@media(max-width:768px){.msg{max-width:92%}}
 /* Bandeau lecture seule */
 .banner-ro{display:flex;gap:12px;align-items:flex-start;background:var(--blue-ll);border:1px solid #93c5fd;border-left:4px solid var(--blue);color:#1e3a8a;border-radius:var(--radius-sm);padding:12px 16px;margin-bottom:18px;font-size:13px;line-height:1.5}
 .banner-ro .ico{font-size:18px;line-height:1}
@@ -213,6 +227,10 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
       <a href="{{ url_for('kanban') }}" class="nav-item {% if request.endpoint=='kanban' %}active{% endif %}"><span class="nav-icon">&#128204;</span> 4 · Kanban du sprint</a>
       <a href="{{ url_for('revue') }}" class="nav-item {% if request.endpoint=='revue' %}active{% endif %}"><span class="nav-icon">&#127916;</span> 5 · Revue de sprint</a>
       <a href="{{ url_for('retro') }}" class="nav-item {% if request.endpoint=='retro' %}active{% endif %}"><span class="nav-icon">&#128260;</span> 6 · Rétrospective</a>
+    </div>
+    <div class="sidebar-section">
+      <div class="sidebar-section-label">Échanges</div>
+      <a href="{{ url_for('messages') }}" class="nav-item {% if request.endpoint=='messages' %}active{% endif %}"><span class="nav-icon">&#128172;</span> Messages PO ↔ équipe{% if nb_non_lus %}<span class="nav-badge" title="Messages non lus">{{ nb_non_lus }}</span>{% endif %}</a>
     </div>
     {% if est_po %}
     <div class="sidebar-section">
