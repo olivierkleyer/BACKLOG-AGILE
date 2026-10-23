@@ -170,6 +170,44 @@ with sync_playwright() as pw:
         assert '/admin/users' not in dev.url or r.status in (302, 403), 'dev a accès à l\'admin'
     etape(dev, '13 parcours dev1 sur téléphone (droits, Kanban, estimation)', s13)
 
+    def s13b():
+        dev.goto(U + '/backlog')
+        f = dev.locator('form.ajout-story').first
+        assert f.locator('select[name=priorite]').count() == 0, 'le dev choisit la priorité'
+        f.locator('select[name=nature]').select_option('us'); f.locator('input[name=titre]').fill('Proposition dev1')
+        f.locator('button').click(); dev.wait_for_load_state()
+        assert 'proposée par' in dev.locator('tr', has_text='Proposition dev1').inner_text(), 'auteur non affiché'
+        dev.locator('a.story-link', has_text='Proposition dev1').click(); dev.wait_for_load_state()
+        sid = dev.url.rstrip('/').split('/')[-1]
+        assert dev.locator('input[name=titre][disabled]').count() == 0, 'le dev ne peut pas rédiger sa story'
+        assert dev.locator('select[name=priorite][disabled]').count() == 1, 'priorité modifiable par le dev'
+        dev.fill('textarea[name=en_tant_que]', 'formateur'); dev.fill('textarea[name=criteres]', 'Étant donné…')
+        dev.click('.barre-save button'); dev.wait_for_load_state()
+        assert dev.input_value('textarea[name=en_tant_que]') == 'formateur', 'récit du dev non enregistré'
+        assert 'R+A' in dev.content() and 'RACI' in dev.content(), 'auteur non R+A'
+        # le PO ne rédige pas ni ne supprime la story d'un dev, mais garde la priorité
+        po.goto(U + '/story/' + sid)
+        assert po.locator('input[name=titre][disabled]').count() == 1, 'le PO peut rédiger la story du dev'
+        assert po.locator('select[name=priorite][disabled]').count() == 0, 'le PO a perdu la priorité'
+        assert po.locator('#suppr').count() == 0, 'le PO peut supprimer la story du dev'
+        # le dev peut créer toute nature de story
+        dev.goto(U + '/backlog'); f = dev.locator('form.ajout-story').first
+        f.locator('select[name=nature]').select_option('bug'); f.locator('input[name=titre]').fill('Bug dev1')
+        f.locator('button').click(); dev.wait_for_load_state()
+        assert dev.locator('tr', has_text='Bug dev1').count() == 1, 'le dev ne peut pas créer un bug'
+        dev.locator('a.story-link', has_text='Bug dev1').click(); dev.wait_for_load_state()
+        dev.locator('button[form=suppr]').click(); dev.wait_for_load_state()
+        dev.goto(U + '/story/' + sid)
+        # un autre dev ne peut pas la rédiger
+        login(dev, 'dev2', 'devdev'); dev.goto(U + '/story/' + sid)
+        assert dev.locator('input[name=titre][disabled]').count() == 1, 'dev2 peut rédiger la story de dev1'
+        assert dev.locator('#suppr').count() == 0, 'dev2 peut supprimer la story de dev1'
+        # l'auteur peut la supprimer tant qu'elle n'est pas commencée
+        login(dev, 'dev1', 'devdev'); dev.goto(U + '/story/' + sid)
+        dev.locator('button[form=suppr]').click(); dev.wait_for_load_state()
+        assert 'supprimée' in dev.content(), 'suppression par l\'auteur refusée'
+    etape(dev, '13b dev1 propose (toute nature, R+A auto), rédige, PO sans la main, suppression', s13b)
+
     def s14():
         po.goto(U + '/revue?sprint=1')
         po.fill('.ajout-retour textarea[name=texte]', 'La carte doit montrer le niveau de batterie'); po.click('text=Enregistrer le retour'); po.wait_for_load_state()

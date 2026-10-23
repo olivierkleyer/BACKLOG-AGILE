@@ -114,7 +114,7 @@ td.us-id{border-left:4px solid var(--c,transparent)}
     {% for s in b.stories %}{% set d = s.dod_etat(dod_commune) %}
       {% set NS = nat(s.nature) %}<tr style="--c:{{ NS.couleur }}">
         <td class="us-id m-hide">{{ s.numero() }}</td>
-        <td class="card-head"><span class="nat-badge" style="--c:{{ NS.couleur }}">{{ NS.nom }}</span> <a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% if s.parent %}<span class="ref-parent" title="Rattachée à {{ s.parent.titre }}">&#8627; {{ s.parent.numero() }}</span>{% endif %}</td>
+        <td class="card-head"><span class="nat-badge" style="--c:{{ NS.couleur }}">{{ NS.nom }}</span> <a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% if s.parent %}<span class="ref-parent" title="Rattachée à {{ s.parent.titre }}">&#8627; {{ s.parent.numero() }}</span>{% endif %}{% if s.auteur and s.auteur != 'po' %}<span class="ref-parent" title="Story proposée par un membre de l'équipe">proposée par {{ court(s.auteur) }}</span>{% endif %}</td>
         <td class="small">{{ porteurs(s, '<span class="muted">—</span>') }}</td>
         <td class="c"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span></td>
         <td class="c mono">{{ s.points|fmt if s.points else '—' }}{% if s.points %} <span class="muted small">pts</span>{% endif %}</td>
@@ -128,13 +128,12 @@ td.us-id{border-left:4px solid var(--c,transparent)}
     </tbody>
   </table>
   {% elif not (filtre_sprint or filtre_statut) %}
-  <div class="vide">Aucune story dans cette feature.{% if est_po %} Ajoutez-en une ci-dessous : choisissez sa nature, puis son titre.{% endif %}</div>
+  <div class="vide">Aucune story dans cette feature. Ajoutez-en une ci-dessous : choisissez sa nature, puis son titre.</div>
   {% else %}
   <div class="vide">Aucune story ne correspond aux filtres.</div>
   {% endif %}
 
-  {% if est_po %}
-  <div class="ajout-titre no-print">+ Ajouter une story à « {{ b.f.nom }} »</div>
+  <div class="ajout-titre no-print">+ {{ 'Ajouter' if est_po else 'Proposer' }} une story à « {{ b.f.nom }} »</div>
   <form class="ajout-story no-print" method="post" action="{{ url_for('story_ajouter') }}">
     <input type="hidden" name="feature_id" value="{{ b.f.id }}">
     <select name="nature" class="nat-sel" required title="Nature de la story">
@@ -142,10 +141,10 @@ td.us-id{border-left:4px solid var(--c,transparent)}
       {% for n in NATURES %}<option value="{{ n.code }}" {% if session.derniere_nature==n.code %}selected{% endif %}>{{ n.nom }}</option>{% endfor %}
     </select>
     <input type="text" name="titre" placeholder="Nouvelle story : titre court…" required>
-    <select name="priorite">{% for p in PRIORITES %}<option {% if p=='P2' %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>
+    {% if est_po %}<select name="priorite">{% for p in PRIORITES %}<option {% if p=='P2' %}selected{% endif %}>{{ p }}</option>{% endfor %}</select>{% endif %}
     <button class="btn btn-primary btn-sm">Créer la story</button>
   </form>
-  {% endif %}
+  {% if not est_po %}<div class="nf-aide no-print">Vous pourrez ensuite rédiger votre story (récit, critères d'acceptation) dans sa fiche. Sa priorité sera fixée par le PO.</div>{% endif %}
 </div>
 {% endfor %}
 

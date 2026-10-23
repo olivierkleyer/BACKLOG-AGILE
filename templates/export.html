@@ -95,7 +95,7 @@ td.n{text-align:right;white-space:nowrap}
   <div class="story" style="--c:{{ n.couleur }}">
     <div class="st-tete">
       <div><span class="st-id">{{ s.numero() }}</span><span class="st-titre">{{ s.titre }}</span>
-        <div class="nat">{{ n.nom }}{% if s.parent %} · rattachée à {{ s.parent.numero() }} {{ s.parent.titre }}{% endif %}</div></div>
+        <div class="nat">{{ n.nom }}{% if s.parent %} · rattachée à {{ s.parent.numero() }} {{ s.parent.titre }}{% endif %}{% if s.auteur and s.auteur != 'po' %} · proposée par {{ court(s.auteur) }}{% endif %}</div></div>
       <div class="tags">
         <span class="tag {{ 'p1' if s.priorite == 'P1' }}">{{ s.priorite }}</span>
         <span class="tag">{{ (s.points|fmt ~ ' pts') if s.points else 'non estimée' }}</span>

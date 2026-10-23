@@ -180,6 +180,7 @@ class Story(db.Model):
     dor_ok_json = db.Column(db.Text, default='[]')         # libelles de la DoR cochés
     dor_json = db.Column(db.Text, default='[]')            # DoR specifique [{label, ok}]
     nature = db.Column(db.String(80), default='us')
+    auteur = db.Column(db.String(80), default='')          # compte qui a cree la story (po ou devN)
     parent_id = db.Column(db.Integer, db.ForeignKey('story.id'), nullable=True)
     description = db.Column(db.Text, default='')           # natures autres que user story
     observe = db.Column(db.Text, default='')               # bug : comportement observe
@@ -249,6 +250,21 @@ class Story(db.Model):
         total = len(dod_commune) + len(self.dod)
         fait = sum(1 for l in dod_commune if l in ok_c) + sum(1 for d in self.dod if d.get('ok'))
         return fait, total
+
+    def proposee_par_equipe(self):
+        return bool(self.auteur) and self.auteur != 'po'
+
+    def redigeable_par(self, username, role):
+        """Chacun redige ses stories : celles d'un dev par leur auteur seul, les autres par le PO seul."""
+        if self.proposee_par_equipe():
+            return self.auteur == username
+        return role == 'po'
+
+    def supprimable_par(self, username, role):
+        """Seul l'auteur supprime : le PO ses stories ; un dev les siennes tant qu'elles ne sont ni planifiees ni commencees."""
+        if not self.redigeable_par(username, role):
+            return False
+        return role == 'po' or (not self.sprint and self.statut == 'A faire' and not self.taches)
 
     def numero(self):
         prefixe = next((n['prefixe'] for n in NATURES_BASE if n['code'] == self.nature), 'ST')
@@ -821,7 +837,7 @@ def feature_supprimer(fid):
     return redirect(url_for('backlog'))
 
 @app.route('/story/ajouter', methods=['POST'])
-@po_requis
+@connecte
 def story_ajouter():
     f = db.get_or_404(Feature, request.form.get('feature_id', type=int))
     titre = request.form.get('titre', '').strip()
@@ -832,8 +848,12 @@ def story_ajouter():
     if nature not in codes:
         flash('Choisissez la nature de la story (user story, story technique, bug…).', 'error')
         return redirect(url_for('backlog') + '#feature-{}'.format(f.id))
-    s = Story(feature_id=f.id, titre=titre[:200], nature=nature,
-              priorite=request.form.get('priorite') if request.form.get('priorite') in PRIORITES else 'P2')
+    # la priorite est fixee par le PO ; une story proposee par l'equipe arrive en P2
+    prio = request.form.get('priorite') if est_po() and request.form.get('priorite') in PRIORITES else 'P2'
+    auteur = session.get('username', '')
+    s = Story(feature_id=f.id, titre=titre[:200], nature=nature, priorite=prio, auteur=auteur)
+    if not est_po():   # le dev qui propose une story en est Responsible + Accountable
+        s.raci_json = json.dumps({auteur: 'RA'}); s.responsable = auteur[:40]
     db.session.add(s); db.session.commit()
     session['derniere_nature'] = nature
     flash('Story {} « {} » créée. Saisissez la suivante ci-dessous, ou cliquez sur son titre pour ouvrir sa fiche.'.format(s.numero(), s.titre), 'success')
@@ -848,12 +868,13 @@ def story(sid):
     if request.method == 'POST':
         fm = request.form
         if est_po():
+            if fm.get('priorite') in PRIORITES: s.priorite = fm.get('priorite')
+        if s.redigeable_par(session.get('username'), session.get('role')):
             s.titre = (fm.get('titre', '').strip() or s.titre)[:200]
             s.en_tant_que = fm.get('en_tant_que', '').strip()
             s.besoin = fm.get('besoin', '').strip()
             s.pour = fm.get('pour', '').strip()
             s.criteres = fm.get('criteres', '').strip()
-            if fm.get('priorite') in PRIORITES: s.priorite = fm.get('priorite')
             fid = fm.get('feature_id', type=int)
             if fid and db.session.get(Feature, fid): s.feature_id = fid
             if fm.get('nature') in [n['code'] for n in natures(p)]: s.nature = fm.get('nature')
@@ -919,7 +940,9 @@ def story(sid):
                            responsables=responsables_connus(), dod=s.dod_etat(p.dod_commune),
                            dor_commune=p.dor_commune, dor=s.dor_etat(p.dor_commune),
                            DOR_DEFAUT=DOR_COMMUNE_DEFAUT, DOD_DEFAUT=DOD_COMMUNE_DEFAUT,
-                           RACI_ROLES=RACI_ROLES, RACI_LIBELLES=RACI_LIBELLES)
+                           RACI_ROLES=RACI_ROLES, RACI_LIBELLES=RACI_LIBELLES,
+                           redacteur=s.redigeable_par(session.get('username'), session.get('role')),
+                           supprimable=s.supprimable_par(session.get('username'), session.get('role')))
 
 def liste_criteres(fm, prefixe):
     """Criteres specifiques (DoR ou DoD) saisis sur la fiche : libelles + cases + nouveau critere."""
@@ -944,9 +967,12 @@ def parents_possibles(s):
     return [x for x in cand if autorises is None or x.nature in autorises]
 
 @app.route('/story/<int:sid>/supprimer', methods=['POST'])
-@po_requis
+@connecte
 def story_supprimer(sid):
     s = db.get_or_404(Story, sid)
+    if not s.supprimable_par(session.get('username'), session.get('role')):
+        flash("Suppression réservée à l'auteur de la story (le PO pour ses stories ; un dev pour les siennes, tant qu'elles ne sont ni planifiées ni commencées).", 'error')
+        return redirect(url_for('story', sid=s.id))
     for e in s.enfants: e.parent_id = None
     db.session.delete(s); db.session.commit()
     flash('Story « {} » supprimée'.format(s.titre), 'success')

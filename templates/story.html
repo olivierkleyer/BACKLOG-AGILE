@@ -5,7 +5,7 @@
 {% block page_title %}<span class="nat-badge" style="--c:{{ N.couleur }}">{{ N.nom }}</span> <span class="mono muted" style="font-size:13px">{{ s.numero() }}</span> &nbsp;{{ s.titre }}{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% endblock %}
 {% block topbar_actions %}
   <a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">&#8592; Backlog</a>
-  {% if est_po %}<a class="btn btn-success btn-sm" href="{{ url_for('backlog') }}#feature-{{ s.feature_id }}" title="Ajouter une autre story à la feature « {{ s.feature.nom }} »">+ Nouvelle story</a>{% endif %}
+  <a class="btn btn-success btn-sm" href="{{ url_for('backlog') }}#feature-{{ s.feature_id }}" title="Ajouter une autre story à la feature « {{ s.feature.nom }} »">+ Nouvelle story</a>
   {% if prec %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=prec) }}" title="Story précédente">&#8249;</a>{% endif %}
   {% if suiv %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=suiv) }}" title="Story suivante">&#8250;</a>{% endif %}
 {% endblock %}
@@ -68,7 +68,7 @@
 @media(max-width:900px){.fiche{grid-template-columns:1fr}.fiche>.side{order:-1}}
 </style>
 {% endblock %}
-{% block ro_banner %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. La nature, le titre, la description, les critères d'acceptation et la priorité sont rédigés par le Product Owner. Vous pouvez modifier le statut, le RACI, l'estimation, le sprint, le rattachement, l'andon, la DoR, la DoD, les tâches et les pièces jointes. Pour modifier le reste, <a href="{{ url_for('logout') }}">reconnectez-vous avec le compte po</a>.</div></div>{% endblock %}
+{% block ro_banner %}{% if redacteur %}<div class="banner-ro"><span class="ico">&#9998;</span><div><b>Votre story</b> — vous l'avez proposée : vous pouvez rédiger sa nature, son titre, son récit, ses critères d'acceptation et sa feature. Sa <b>priorité</b> est fixée par le Product Owner.</div></div>{% else %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. La nature, le titre, la description, les critères d'acceptation et la feature sont rédigés par {% if s.proposee_par_equipe() %}<b>{{ court(s.auteur) }}</b>, qui a proposé cette story{% else %}le Product Owner{% endif %} ; la priorité, par le Product Owner. Vous pouvez modifier le statut, le RACI, l'estimation, le sprint, l'andon, la DoR, la DoD, les tâches et les pièces jointes. Pour proposer votre propre story, utilisez « + Nouvelle story ».</div></div>{% endif %}{% endblock %}
 {% block content %}
 
 {% if cal and s.sprint and not (cal.s1 <= s.sprint <= cal.s2) %}
@@ -81,34 +81,35 @@
 <form id="fiche" method="post" class="fiche">
   <div>
     <div class="card">
-      <div class="card-title">Story</div>
+      <div class="card-title">Story{% if s.auteur and s.auteur != 'po' %} <span class="small muted" style="text-transform:none;font-weight:500;letter-spacing:0">· proposée par {{ court(s.auteur) }}</span>{% endif %}</div>
+      {% if est_po and not redacteur %}<p class="small muted" style="margin:-4px 0 12px">Story proposée par {{ court(s.auteur) }} : lui seul la rédige. Vous gardez la main sur sa <b>priorité</b>.</p>{% endif %}
       <div class="grid2">
         <div class="field"><label>Nature</label>
-          <select name="nature" id="nature" {% if not est_po %}disabled{% endif %}>
+          <select name="nature" id="nature" {% if not redacteur %}disabled{% endif %}>
             {% for n in NATURES %}<option value="{{ n.code }}" {% if n.code==s.nature %}selected{% endif %}>{{ n.nom }}</option>{% endfor %}
           </select></div>
       </div>
-      <div class="field"><label>Titre</label><input type="text" name="titre" value="{{ s.titre }}" {% if not est_po %}disabled{% endif %} required></div>
+      <div class="field"><label>Titre</label><input type="text" name="titre" value="{{ s.titre }}" {% if not redacteur %}disabled{% endif %} required></div>
 
       <div class="grp us-format" data-nat="us">
-        <div class="field"><label>En tant que…</label><textarea name="en_tant_que" placeholder="ex : viticulteur responsable de parcelle" {% if not est_po %}disabled{% endif %}>{{ s.en_tant_que }}</textarea></div>
-        <div class="field"><label>J'ai besoin de…</label><textarea name="besoin" placeholder="ex : visualiser l'avancement de la récolte parcelle par parcelle" {% if not est_po %}disabled{% endif %}>{{ s.besoin }}</textarea></div>
-        <div class="field"><label>Pour…</label><textarea name="pour" placeholder="ex : réaffecter les robots vers les parcelles en retard" {% if not est_po %}disabled{% endif %}>{{ s.pour }}</textarea></div>
+        <div class="field"><label>En tant que…</label><textarea name="en_tant_que" placeholder="ex : viticulteur responsable de parcelle" {% if not redacteur %}disabled{% endif %}>{{ s.en_tant_que }}</textarea></div>
+        <div class="field"><label>J'ai besoin de…</label><textarea name="besoin" placeholder="ex : visualiser l'avancement de la récolte parcelle par parcelle" {% if not redacteur %}disabled{% endif %}>{{ s.besoin }}</textarea></div>
+        <div class="field"><label>Pour…</label><textarea name="pour" placeholder="ex : réaffecter les robots vers les parcelles en retard" {% if not redacteur %}disabled{% endif %}>{{ s.pour }}</textarea></div>
       </div>
       <div class="grp" data-nat="bug">
-        <div class="field"><label>Comportement observé</label><textarea name="observe" rows="3" placeholder="ex : le robot s'arrête au bout du rang 12 et ne repart pas" {% if not est_po %}disabled{% endif %}>{{ s.observe }}</textarea></div>
-        <div class="field"><label>Comportement attendu</label><textarea name="attendu" rows="3" placeholder="ex : le robot fait demi-tour et attaque le rang 13" {% if not est_po %}disabled{% endif %}>{{ s.attendu }}</textarea></div>
+        <div class="field"><label>Comportement observé</label><textarea name="observe" rows="3" placeholder="ex : le robot s'arrête au bout du rang 12 et ne repart pas" {% if not redacteur %}disabled{% endif %}>{{ s.observe }}</textarea></div>
+        <div class="field"><label>Comportement attendu</label><textarea name="attendu" rows="3" placeholder="ex : le robot fait demi-tour et attaque le rang 13" {% if not redacteur %}disabled{% endif %}>{{ s.attendu }}</textarea></div>
       </div>
       <div class="grp" data-nat="autre">
-        <div class="field"><label>Description</label><textarea name="description" rows="4" placeholder="Ce qu'il faut faire et pourquoi" {% if not est_po %}disabled{% endif %}>{{ s.description }}</textarea></div>
+        <div class="field"><label>Description</label><textarea name="description" rows="4" placeholder="Ce qu'il faut faire et pourquoi" {% if not redacteur %}disabled{% endif %}>{{ s.description }}</textarea></div>
       </div>
-      <div class="field" style="margin-bottom:0"><label>Critères d'acceptation</label><textarea name="criteres" rows="4" placeholder="Étant donné… quand… alors…" {% if not est_po %}disabled{% endif %}>{{ s.criteres }}</textarea></div>
+      <div class="field" style="margin-bottom:0"><label>Critères d'acceptation</label><textarea name="criteres" rows="4" placeholder="Étant donné… quand… alors…" {% if not redacteur %}disabled{% endif %}>{{ s.criteres }}</textarea></div>
     </div>
 
     <div class="card">
       <div class="card-title">Rattachement</div>
       <div class="field"><label>Feature</label>
-        <select name="feature_id" {% if not est_po %}disabled{% endif %}>
+        <select name="feature_id" {% if not redacteur %}disabled{% endif %}>
           {% for f in features %}<option value="{{ f.id }}" {% if f.id==s.feature_id %}selected{% endif %}>{{ f.nom }}{% if f.release %} · {{ f.release.nom }}{% endif %}</option>{% endfor %}
         </select></div>
       <div class="field" style="margin-bottom:0"><label>Story parente <span class="muted" style="text-transform:none;font-weight:500">(facultatif)</span></label>
@@ -240,7 +241,7 @@
     <div class="card small muted">
       Tâches : <strong class="mono" style="color:var(--navy)">{{ s.heures()|fmt }} h</strong> estimées,
       <strong class="mono" style="color:var(--navy)">{{ s.heures_restantes()|fmt }} h</strong> restantes.
-      {% if est_po %}
+      {% if supprimable %}
       <hr style="border:none;border-top:1px solid var(--gray-200);margin:12px 0">
       <button class="btn btn-ghost btn-sm" form="suppr" style="color:var(--red)">Supprimer la story</button>
       {% endif %}
@@ -248,7 +249,7 @@
   </div>
   <div class="barre-save"><span class="small muted">Les modifications de la fiche s'enregistrent avec ce bouton.</span><button class="btn btn-primary">Enregistrer la story</button></div>
 </form>
-{% if est_po %}
+{% if supprimable %}
 <form id="suppr" method="post" action="{{ url_for('story_supprimer', sid=s.id) }}" onsubmit="return confirm('Supprimer définitivement cette story, ses tâches et ses pièces jointes ?')"></form>
 {% endif %}
 
