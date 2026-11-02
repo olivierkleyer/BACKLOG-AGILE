@@ -46,6 +46,11 @@ td.us-id{border-left:4px solid var(--c,transparent)}
       <option value="0" {% if filtre_release=='0' %}selected{% endif %}>Sans release</option>
       {% for r in releases %}<option value="{{ r.id }}" {% if filtre_release==r.id|string %}selected{% endif %}>{{ r.nom }}</option>{% endfor %}
     </select></div>
+  <div class="field"><label>Feature</label>
+    <select name="feature" onchange="this.form.submit()">
+      <option value="">Toutes</option>
+      {% for f in toutes_features %}<option value="{{ f.id }}" {% if filtre_feature==f.id|string %}selected{% endif %}>{{ f.nom }}</option>{% endfor %}
+    </select></div>
   <div class="field"><label>Nature</label>
     <select name="nature" onchange="this.form.submit()">
       <option value="">Toutes</option>
@@ -67,13 +72,14 @@ td.us-id{border-left:4px solid var(--c,transparent)}
       <option value="">Tous</option>
       {% for st in STATUTS %}<option {% if filtre_statut==st %}selected{% endif %}>{{ st }}</option>{% endfor %}
     </select></div>
-  {% if filtre_sprint or filtre_statut or filtre_release or filtre_nature or filtre_dev %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
+  {% if filtre_sprint or filtre_statut or filtre_release or filtre_nature or filtre_dev or filtre_feature %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
 </form>
 {% endif %}
 
 {% if not blocs %}
 <div class="card vide">
-  {% if not releases and not stats.features %}
+  {% if filtre_stories %}Aucune story ne correspond aux filtres. <a href="{{ url_for('backlog') }}">Effacer les filtres</a>
+  {% elif not releases and not stats.features %}
   Le backlog se remplira à l'étape 3. D'abord : régler le calendrier et créer une release dans <a href="{{ url_for('sprints') }}">1 · Releases &amp; sprints</a>.
   {% elif est_po %}Le backlog est vide. Créez une <strong>feature</strong> ci-dessous, puis ajoutez-lui des stories.
   {% else %}Le backlog est vide : le Product Owner n'a pas encore créé de feature.{% endif %}
@@ -127,7 +133,7 @@ td.us-id{border-left:4px solid var(--c,transparent)}
     {% endfor %}
     </tbody>
   </table>
-  {% elif not (filtre_sprint or filtre_statut) %}
+  {% elif not filtre_stories %}
   <div class="vide">Aucune story dans cette feature. Ajoutez-en une ci-dessous : choisissez sa nature, puis son titre.</div>
   {% else %}
   <div class="vide">Aucune story ne correspond aux filtres.</div>

@@ -764,6 +764,10 @@ def backlog():
     filtre_release = request.args.get('release', '')
     filtre_nature = request.args.get('nature', '')
     filtre_dev = request.args.get('dev', '')
+    filtre_feature = request.args.get('feature', '')
+    toutes_features = list(features)          # pour la liste du filtre « Feature »
+    if filtre_feature:
+        features = [f for f in features if str(f.id) == filtre_feature]
     if filtre_release == '0':
         features = [f for f in features if not f.release_id]
     elif filtre_release:
@@ -781,6 +785,9 @@ def backlog():
             st = [s for s in st if s.nature == filtre_nature]
         if filtre_dev:
             st = [s for s in st if s.concerne(filtre_dev)]
+        # filtre sur les stories actif : une feature sans story correspondante n'est pas affichee
+        if (filtre_sprint != '' or filtre_statut or filtre_nature or filtre_dev) and not st:
+            continue
         blocs.append({'f': f, 'stories': st, 'cal': cal.get(f.release_id),
                       'points': sum(s.points or 0 for s in f.stories),
                       'fait': sum(s.points or 0 for s in f.stories if s.statut == 'Fait')})
@@ -792,6 +799,8 @@ def backlog():
              'non_estimees': sum(1 for s in toutes if not s.points)}
     return render_template('backlog.html', blocs=blocs, stats=stats, dod_commune=p.dod_commune, dor_commune=p.dor_commune,
                            filtre_sprint=filtre_sprint, filtre_statut=filtre_statut, filtre_release=filtre_release, filtre_nature=filtre_nature, filtre_dev=filtre_dev,
+                           filtre_feature=filtre_feature, toutes_features=toutes_features,
+                           filtre_stories=bool(filtre_sprint != '' or filtre_statut or filtre_nature or filtre_dev),
                            releases=Release.query.order_by(Release.ordre, Release.id).all(), cal_rel=cal,
                            responsables=responsables_connus())
 
@@ -980,15 +989,17 @@ def story(sid):
         return redirect(url_for('story', sid=s.id))
     # navigation precedente / suivante dans l'ordre du backlog
     prio_rang = {k: i for i, k in enumerate(PRIORITES)}
-    ordre = []
+    ordre, navigation = [], []   # navigation : stories regroupees par feature, pour la liste « Aller a une story »
     for f in Feature.query.order_by(Feature.ordre, Feature.id).all():
-        ordre += [x.id for x in sorted(f.stories, key=lambda x: (prio_rang.get(x.priorite, 9), x.ordre, x.id))]
+        st = sorted(f.stories, key=lambda x: (prio_rang.get(x.priorite, 9), x.ordre, x.id))
+        ordre += [x.id for x in st]
+        if st: navigation.append({'f': f, 'stories': st})
     i = ordre.index(s.id)
     prec = ordre[i - 1] if i > 0 else None
     suiv = ordre[i + 1] if i < len(ordre) - 1 else None
     cal = next((c for c in calendrier_releases(p) if c['r'].id == s.feature.release_id), None)
     enfants_ouverts = [e for e in s.enfants if e.statut != 'Fait']
-    return render_template('story.html', s=s, dod_commune=p.dod_commune, prec=prec, suiv=suiv, cal=cal,
+    return render_template('story.html', s=s, dod_commune=p.dod_commune, prec=prec, suiv=suiv, cal=cal, navigation=navigation, multi_rel=Release.query.count() > 1,
                            parents=parents_possibles(s), autorises=parents_autorises(s.nature),
                            sprints_info=sprints_avec_release(p),
                            enfants_ouverts=enfants_ouverts,
@@ -1292,7 +1303,7 @@ def story_sprint(sid):
     db.session.commit()
     if erreur:
         flash(erreur + ' Complétez-la sur sa fiche (estimation et DoR).', 'error')
-    return redirect(url_for('planifier', sprint=vue))
+    return redirect(url_for('planifier', sprint=vue, feature=request.form.get('feature') or None))
 
 def sprints_avec_release(p):
     rs, cal = resume_sprints(p), calendrier_releases(p)
@@ -1321,6 +1332,11 @@ def planifier():
     prio_rang = {k: i for i, k in enumerate(PRIORITES)}
     cle = lambda s: (prio_rang.get(s.priorite, 9), s.feature.ordre, s.ordre, s.id)
     libres = sorted(Story.query.filter_by(sprint=0).all(), key=cle)
+    # filtre « Feature » de la colonne de gauche (le contenu du sprint reste complet)
+    filtre_feature = request.args.get('feature', '')
+    nb_libres = len(libres)
+    if filtre_feature:
+        libres = [s for s in libres if str(s.feature_id) == filtre_feature]
     pretes = [s for s in libres if s.est_prete(p.dor_commune)]
     pas_pretes = [s for s in libres if not s.est_prete(p.dor_commune)]
     dans = sorted(Story.query.filter_by(sprint=n).all(), key=cle)
@@ -1329,7 +1345,8 @@ def planifier():
     return render_template('planifier.html', n=n, sp=sp, pretes=pretes, pas_pretes=pas_pretes, dans=dans,
                            engage=engage, debut=debut, fin=fin, sprints=resume_sprints(p),
                            rel=release_du_sprint(calendrier_releases(p), n), dor_commune=p.dor_commune,
-                           libres=libres, dor_bloquante=p.dor_bloquante)
+                           libres=libres, dor_bloquante=p.dor_bloquante, nb_libres=nb_libres, filtre_feature=filtre_feature,
+                           features=[f for f in Feature.query.order_by(Feature.ordre, Feature.id).all() if any(not x.sprint for x in f.stories)])
 
 @app.route('/parametres', methods=['GET', 'POST'])
 @po_requis

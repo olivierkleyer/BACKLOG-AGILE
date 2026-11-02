@@ -5,10 +5,17 @@
 {% block title %}{{ s.numero() }} · {{ s.titre }}{% endblock %}
 {% block page_title %}<span class="nat-badge" style="--c:{{ N.couleur }}">{{ N.nom }}</span> <span class="mono muted" style="font-size:13px">{{ s.numero() }}</span> &nbsp;{{ s.titre }}{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% endblock %}
 {% block topbar_actions %}
-  <a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">&#8592; Backlog</a>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}#feature-{{ s.feature_id }}" title="Revenir au backlog, sur la feature « {{ s.feature.nom }} »">&#8592; Backlog</a>
+  <span class="nav-story">
+    {% if prec %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=prec) }}" title="Story précédente">&#8249;</a>{% endif %}
+    <select id="aller-story" class="aller-story" title="Aller à une autre story" aria-label="Aller à une autre story">
+      {% for g in navigation %}<optgroup label="{{ g.f.nom }}{% if multi_rel and g.f.release %} · {{ g.f.release.nom }}{% endif %}">
+        {% for x in g.stories %}<option value="{{ url_for('story', sid=x.id) }}" {% if x.id == s.id %}selected{% endif %}>{{ x.numero() }} · {{ x.titre }}</option>{% endfor %}
+      </optgroup>{% endfor %}
+    </select>
+    {% if suiv %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=suiv) }}" title="Story suivante">&#8250;</a>{% endif %}
+  </span>
   <a class="btn btn-success btn-sm" href="{{ url_for('backlog') }}#feature-{{ s.feature_id }}" title="Ajouter une autre story à la feature « {{ s.feature.nom }} »">+ Nouvelle story</a>
-  {% if prec %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=prec) }}" title="Story précédente">&#8249;</a>{% endif %}
-  {% if suiv %}<a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=suiv) }}" title="Story suivante">&#8250;</a>{% endif %}
 {% endblock %}
 {% block extra_css %}
 <style>
@@ -16,6 +23,12 @@
 .ajout-titre{font-size:12px;font-weight:700;color:var(--gray-500);margin:0 0 6px;text-transform:uppercase;letter-spacing:.5px}
 .ft-new{display:grid;grid-template-columns:minmax(0,1fr) 100px 150px auto;gap:8px;align-items:center}
 @media(max-width:768px){.ft-new{grid-template-columns:1fr 1fr}.ft-new input[name=titre],.ft-new .btn{grid-column:1/-1}}
+.nav-story{display:inline-flex;gap:6px;align-items:center}
+.aller-story{max-width:200px;padding:6px 8px;font-size:13px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);background:white;font-family:inherit}
+.fil-ariane{font-size:12.5px;color:var(--gray-500);margin:-6px 0 14px}
+.fil-ariane a{color:var(--blue);text-decoration:none;font-weight:600}.fil-ariane a:hover{text-decoration:underline}
+.fil-ariane span{margin:0 4px}
+@media(max-width:768px){.nav-story{width:100%}.aller-story{flex:1;max-width:none}}
 .barre-save{position:sticky;bottom:0;z-index:40;grid-column:1/-1;display:flex;justify-content:flex-end;align-items:center;gap:12px;background:rgba(255,255,255,.96);border:1px solid var(--gray-200);border-radius:var(--radius);box-shadow:0 -4px 14px rgba(0,0,0,.06);padding:10px 16px;margin-top:4px}
 @media(max-width:768px){.barre-save span{display:none}.barre-save .btn{width:100%;justify-content:center}}
 .fiche{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:20px;align-items:start}
@@ -71,6 +84,7 @@
 {% endblock %}
 {% block ro_banner %}{% if redacteur %}<div class="banner-ro"><span class="ico">&#9998;</span><div><b>Votre story</b> — vous l'avez proposée : vous pouvez rédiger sa nature, son titre, son récit, ses critères d'acceptation et sa feature. Sa <b>priorité</b> est fixée par le Product Owner.</div></div>{% else %}<div class="banner-ro"><span class="ico">&#128274;</span><div><b>Lecture seule pour l'équipe</b> — vous êtes connecté en tant que <b>{{ session.username }}</b>. La nature, le titre, la description, les critères d'acceptation et la feature sont rédigés par {% if s.proposee_par_equipe() %}<b>{{ court(s.auteur) }}</b>, qui a proposé cette story{% else %}le Product Owner{% endif %} ; la priorité, par le Product Owner. Vous pouvez modifier le statut, le RACI, l'estimation, le sprint, l'andon, la DoR, la DoD, les tâches et les pièces jointes. Pour proposer votre propre story, utilisez « + Nouvelle story ».</div></div>{% endif %}{% endblock %}
 {% block content %}
+<nav class="fil-ariane no-print" aria-label="Fil d'Ariane"><a href="{{ url_for('backlog') }}">Product backlog</a> <span>&rsaquo;</span> <a href="{{ url_for('backlog') }}#feature-{{ s.feature_id }}">{{ s.feature.nom }}</a>{% if multi_rel and s.feature.release %} <span class="muted">({{ s.feature.release.nom }})</span>{% endif %} <span>&rsaquo;</span> <b>{{ s.numero() }}</b></nav>
 
 {% if cal and s.sprint and not (cal.s1 <= s.sprint <= cal.s2) %}
 <div class="alert alert-error">Cette story est planifiée au sprint {{ s.sprint }}, en dehors de sa release <b>{{ cal.r.nom }}</b> (sprints {{ cal.s1 }} à {{ cal.s2 }}, fin le {{ cal.fin.strftime('%d/%m/%Y') if cal.fin else '—' }}).</div>
@@ -332,6 +346,12 @@ document.querySelectorAll('.dod-list input[type=checkbox]').forEach(function(c){
 document.querySelectorAll('#taches .auto').forEach(function(el){
   el.addEventListener('change', function(){ var f=document.getElementById(el.getAttribute('form')); if(f) f.requestSubmit ? f.requestSubmit() : f.submit(); });
 });
+// Aller a une story : ouvre la fiche choisie (l'avertissement « modifications non enregistrees » reste actif)
+(function(){
+  var sel=document.getElementById('aller-story'); if(!sel) return; var actuel=sel.value;
+  sel.addEventListener('change', function(){ var v=sel.value; if(v===actuel) return; location.href=v;
+    setTimeout(function(){ sel.value=actuel; }, 1500); });   // si l'utilisateur annule le depart, la liste revient sur la story ouverte
+})();
 // Les formulaires de taches rechargent la page : on enregistre d'abord la fiche si elle a ete modifiee
 (function(){
   var fiche=document.getElementById('fiche'); if(!fiche) return; var sale=false;

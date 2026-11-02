@@ -25,6 +25,8 @@
 .pl-row .t a{font-weight:600;color:var(--navy);text-decoration:none}
 .pl-row form{margin:0}
 .vide{color:var(--gray-500);font-size:13px;padding:10px 0}
+.filtre-pl{display:flex;gap:8px;align-items:center;margin:-4px 0 10px;font-size:12.5px;color:var(--gray-500)}
+.filtre-pl select{flex:1;padding:6px 8px;font-size:13px;border:1px solid var(--gray-200);border-radius:var(--radius-sm);font-family:inherit}
 details.pp summary{cursor:pointer;font-size:12.5px;color:var(--gray-500);margin-top:14px}
 details.pp .pl-row{opacity:.75}
 @media(max-width:900px){.cols,.plan-head{grid-template-columns:1fr}}
@@ -33,7 +35,7 @@ details.pp .pl-row{opacity:.75}
 {% block content %}
 <div class="tabs">
   {% for r in sprints %}
-  <a class="tab {% if r.sprint.numero==n %}active{% endif %}" href="{{ url_for('planifier', sprint=r.sprint.numero) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>
+  <a class="tab {% if r.sprint.numero==n %}active{% endif %}" href="{{ url_for('planifier', sprint=r.sprint.numero, feature=filtre_feature or None) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>
   {% endfor %}
 </div>
 
@@ -59,6 +61,14 @@ details.pp .pl-row{opacity:.75}
 <div class="cols">
   <div class="card">
     <div class="card-title">Stories du backlog · par priorité</div>
+    <form method="get" class="filtre-pl">
+      <input type="hidden" name="sprint" value="{{ n }}">
+      <label for="pl-feature">Feature</label>
+      <select id="pl-feature" name="feature" onchange="this.form.submit()">
+        <option value="">Toutes ({{ nb_libres }} stories)</option>
+        {% for f in features %}<option value="{{ f.id }}" {% if filtre_feature==f.id|string %}selected{% endif %}>{{ f.nom }} ({{ f.stories|rejectattr('sprint')|list|length }})</option>{% endfor %}
+      </select>
+    </form>
     {% for s in libres %}{% set prete = s.est_prete(dor_commune) %}
     <div class="pl-row">
       <span class="badge pr-{{ s.priorite }}">{{ s.priorite }}</span>
@@ -69,12 +79,12 @@ details.pp .pl-row{opacity:.75}
       {% if dor_bloquante and not prete %}
       <a class="btn btn-ghost btn-sm" href="{{ url_for('story', sid=s.id) }}" title="La DoR est bloquante (réglage du PO)">Compléter &rarr;</a>
       {% else %}
-      <form method="post" action="{{ url_for('story_sprint', sid=s.id) }}"><input type="hidden" name="sprint" value="{{ n }}"><input type="hidden" name="vue" value="{{ n }}">
+      <form method="post" action="{{ url_for('story_sprint', sid=s.id) }}"><input type="hidden" name="sprint" value="{{ n }}"><input type="hidden" name="vue" value="{{ n }}"><input type="hidden" name="feature" value="{{ filtre_feature }}">
         <button class="btn btn-success btn-sm" title="Faire entrer dans le sprint {{ n }}">Ajouter &rarr;</button></form>
       {% endif %}
     </div>
     {% else %}
-    <p class="vide">Toutes les stories sont planifiées.</p>
+    <p class="vide">{% if filtre_feature %}Toutes les stories de cette feature sont planifiées. <a href="{{ url_for('planifier', sprint=n) }}">Voir toutes les features</a>{% else %}Toutes les stories sont planifiées.{% endif %}</p>
     {% endfor %}
   </div>
 
@@ -82,7 +92,7 @@ details.pp .pl-row{opacity:.75}
     <div class="card-title">Dans le sprint {{ n }} · {{ dans|length }} story(s)</div>
     {% for s in dans %}
     <div class="pl-row">
-      <form method="post" action="{{ url_for('story_sprint', sid=s.id) }}"><input type="hidden" name="sprint" value="0"><input type="hidden" name="vue" value="{{ n }}">
+      <form method="post" action="{{ url_for('story_sprint', sid=s.id) }}"><input type="hidden" name="sprint" value="0"><input type="hidden" name="vue" value="{{ n }}"><input type="hidden" name="feature" value="{{ filtre_feature }}">
         <button class="btn btn-ghost btn-sm" title="Remettre dans le backlog">&larr; Retirer</button></form>
       <div class="t"><a href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>
         <div class="small muted">{{ s.numero() }} · {{ s.statut }}</div></div>
