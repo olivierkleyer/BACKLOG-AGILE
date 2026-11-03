@@ -737,13 +737,11 @@ def valider_raci(raci):
         return None
     nb_a = sum(1 for v in raci.values() if 'A' in v)
     nb_r = sum(1 for v in raci.values() if 'R' in v)
-    if nb_a > 1:
-        return 'RACI refusé : un seul Accountable (A) par story ({} désignés).'.format(nb_a)
-    if nb_a == 0:
-        return 'RACI refusé : désignez un Accountable (A), éventuellement cumulé avec R (R+A).'
-    if nb_r == 0:
-        return 'RACI refusé : désignez au moins un Responsible (R), éventuellement le même que l\'Accountable (R+A).'
-    return None
+    manques = []
+    if nb_a > 1: manques.append('un seul Accountable (A) par story ({} désignés)'.format(nb_a))
+    if nb_a == 0: manques.append('il manque un Accountable (A)')
+    if nb_r == 0: manques.append('il manque un Responsible (R)')
+    return ('RACI enregistré mais incomplet : ' + ' ; '.join(manques) + '.') if manques else None
 
 def responsables_connus():
     noms = set()
@@ -951,8 +949,9 @@ def story(sid):
         raci = {}
         for u, niv in zip(fm.getlist('raci_acteur'), fm.getlist('raci_niveau')):
             if u in ids and niv in RACI_ROLES: raci[u] = niv
-        erreur_raci = valider_raci(raci)
-        if not erreur_raci and s.proposee_par_equipe() and session.get('username') != s.auteur:
+        alerte_raci = valider_raci(raci)   # saisie libre : on enregistre, on previent seulement
+        erreur_raci = None
+        if s.proposee_par_equipe() and session.get('username') != s.auteur:
             a_avant, _ = s.porteurs()
             a_apres = next((u for u, v in raci.items() if 'A' in v), None)
             if a_apres != a_avant:
@@ -981,7 +980,9 @@ def story(sid):
         db.session.commit()
         fait, total = s.dod_etat(p.dod_commune)
         if erreur or erreur_dor or erreur_raci:
-            flash(' '.join(e for e in (erreur_raci, erreur_dor, erreur) if e) + ' Les autres modifications sont enregistrées.', 'error')
+            flash(' '.join(e for e in (erreur_raci, alerte_raci, erreur_dor, erreur) if e) + ' Les autres modifications sont enregistrées.', 'error')
+        elif alerte_raci:
+            flash('Story enregistrée. ' + alerte_raci, 'error')
         elif s.statut == 'Fait' and fait < total:
             flash('Story enregistrée en « Fait » alors que la Définition du Fini n\'est pas complète ({}/{})'.format(fait, total), 'error')
         else:

@@ -99,7 +99,7 @@ details.pp .pl-row{opacity:.75}
       <span class="mono small">{{ s.points|fmt if s.points else '?' }} pts</span>
     </div>
     {% else %}
-    <p class="vide">Aucune story dans ce sprint : ajoutez des stories prêtes depuis la colonne de gauche.</p>
+    <p class="vide">Aucune story dans ce sprint : ajoutez des stories depuis la liste « Stories du backlog ».</p>
     {% endfor %}
     {% if dans %}<div style="margin-top:12px;text-align:right"><a class="btn btn-primary btn-sm" href="{{ url_for('kanban', sprint=n) }}">Ouvrir le Kanban du sprint {{ n }} &rarr;</a></div>{% endif %}
   </div>

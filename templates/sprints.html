@@ -141,7 +141,7 @@ tr.courant td{background:var(--blue-ll)}
   {% if est_po %}
   <form id="nouvelle-release" method="post" action="{{ url_for('release_ajouter') }}" style="display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;padding-top:16px;border-top:1px solid var(--gray-100)">
     <div class="field" style="flex:1;min-width:180px;margin:0"><label>Nom de la release</label><input type="text" name="nom" placeholder="ex : R1 – MVP" required></div>
-    <div class="field" style="width:130px;margin:0"><label>Nombre de sprints</label><input type="number" name="nb_sprints" min="1" max="{{ SPRINTS_MAX }}" value="2"></div>
+    <div class="field" style="width:130px;margin:0"><label>Nombre de sprints</label>{% set restants = projet.nb_sprints - sprints_releases %}<input type="number" name="nb_sprints" min="1" max="{{ SPRINTS_MAX }}" value="{{ restants if restants > 0 else 1 }}" title="Sprints du calendrier pas encore couverts par une release : {{ restants if restants > 0 else 0 }}"></div>
     <div class="field" style="flex:2;min-width:200px;margin:0"><label>Objectif (facultatif)</label><input type="text" name="objectif" placeholder="ex : un robot récolte seul une parcelle"></div>
     <button class="btn btn-success" style="align-self:flex-end">Créer la release</button>
   </form>

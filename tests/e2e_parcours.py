@@ -18,7 +18,7 @@ def bug(m): bugs.append(m); print('BUG:', m, flush=True)
 def watch(pg, nom):
     pg.on('pageerror', lambda e: bug(f'[{nom}] erreur JS : {e}'))
     pg.on('console', lambda m: m.type == 'error' and 'favicon' not in m.text and 'TUNNEL' not in m.text and '404' not in m.text and bug(f'[{nom}] console : {m.text}'))
-    pg.on('response', lambda r: (r.status >= 500 or (r.status == 404 and '9999' not in r.url)) and bug(f'[{nom}] HTTP {r.status} sur {r.url}'))
+    pg.on('response', lambda r: (r.status >= 500 or r.status == 405 or (r.status == 404 and '9999' not in r.url)) and bug(f'[{nom}] HTTP {r.status} sur {r.url}'))
     pg.on('dialog', lambda d: d.accept('motif test') if d.type == 'prompt' else d.accept())
 
 def login(pg, u, pw):
@@ -109,8 +109,9 @@ with sync_playwright() as pw:
         po.goto(U + '/story/2')
         l = po.locator('.raci-ligne').last; l.locator('.raci-acteur').select_option('dev3'); l.locator('.raci-niveau').select_option('R')
         po.click('.barre-save button'); po.wait_for_load_state()
-        t = ' '.join(alertes(po)); assert 'RACI refusé' in t, 'RACI sans A accepté : ' + t
-    etape(po, '08 RACI invalide (pas de A) refusé', s08)
+        t = ' '.join(alertes(po)); assert 'RACI enregistré mais incomplet' in t and 'Accountable' in t, 'pas d avertissement RACI : ' + t
+        assert po.locator('.raci-acteur').first.input_value() == 'dev3', 'RACI incomplet non enregistré'
+    etape(po, '08 RACI incomplet (pas de A) enregistré avec avertissement', s08)
 
     def s09():
         po.goto(U + '/planifier?sprint=1')

@@ -35,6 +35,7 @@
   <a class="tab active" href="{{ url_for('kanban', vue='globale') }}">&#9638; Vue globale</a>
   {% for r in sprints %}<a class="tab" href="{{ url_for('kanban', sprint=r.sprint.numero) }}">S{{ r.sprint.numero }}<span class="cnt">{{ r.nb }}</span></a>{% endfor %}
 </div>
+{% set np = par_sprint.get(0, [])|length %}{% if np %}<p class="small muted" style="margin:-6px 0 12px">{{ np }} stor{{ 'ies' if np > 1 else 'y' }} du backlog {{ 'ne sont' if np > 1 else "n'est" }} encore dans aucun sprint : seules les stories ajoutées en <a href="{{ url_for('planifier') }}">Sprint planning</a> apparaissent ici.</p>{% endif %}
 <div class="gl-wrap"><div class="gl">
   {% for r in sprints %}{% set n = r.sprint.numero %}{% set courant = r.debut and r.debut <= aujourdhui <= r.fin %}
   <div class="gl-col">
