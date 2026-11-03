@@ -8,6 +8,12 @@
 .ajout-titre{font-size:12px;font-weight:700;color:var(--gray-500);margin:14px 0 6px;text-transform:uppercase;letter-spacing:.5px}
 .filtres{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:18px}
 .filtres .field{margin:0;min-width:160px}
+.filtres-box{margin-bottom:14px}
+.filtres-box>summary{cursor:pointer;display:inline-block;font-size:13px;font-weight:700;color:var(--gray-700);background:white;border:1px solid var(--gray-200);border-radius:99px;padding:6px 14px;list-style:none}
+.filtres-box>summary::-webkit-details-marker{display:none}
+.filtres-box>summary::before{content:'\25B8  '}
+.filtres-box[open]>summary::before{content:'\25BE  '}
+.filtres-box[open]>summary{margin-bottom:12px}
 .feat-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:12px}
 .feat-name{font-size:15px;font-weight:800;color:var(--navy)}
 .feat-rel{font-size:11px;font-weight:700;color:white;padding:3px 9px;border-radius:99px;margin-left:8px;white-space:nowrap}
@@ -21,6 +27,10 @@
 .feat-edit input{max-width:260px}
 .story-link{font-weight:600;color:var(--navy);text-decoration:none}
 .story-link:hover{color:var(--blue);text-decoration:underline}
+.ouvrir-fiche{display:inline-block;font-size:11px;font-weight:700;color:var(--blue);background:var(--blue-ll,#e7f1fb);border-radius:99px;padding:2px 9px;margin-left:6px;text-decoration:none;white-space:nowrap;vertical-align:middle}
+.ouvrir-fiche:hover{background:var(--blue);color:white}
+tr.ligne-story{cursor:pointer}
+tr.ligne-story:hover td{background:var(--gray-50,#f8fafc)}
 .us-id{font-family:'DM Mono',monospace;font-size:11px;color:var(--gray-500);white-space:nowrap}
 .ajout-story{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
 .ajout-story input{flex:1;min-width:220px}
@@ -38,8 +48,10 @@ td.us-id{border-left:4px solid var(--c,transparent)}
 </style>
 {% endblock %}
 {% block content %}
-{% if stats.stories %}
-<form class="filtres no-print" method="get">
+{% if stats.stories %}{% set actifs = [filtre_sprint, filtre_statut, filtre_release, filtre_nature, filtre_dev, filtre_feature]|select|list|length %}
+<details class="filtres-box no-print" {% if actifs %}open{% endif %}>
+<summary>Filtrer le backlog{% if actifs %} · {{ actifs }} filtre{{ 's' if actifs > 1 }} actif{{ 's' if actifs > 1 }}{% endif %}</summary>
+<form class="filtres" method="get">
   <div class="field"><label>Release</label>
     <select name="release" onchange="this.form.submit()">
       <option value="">Toutes</option>
@@ -74,6 +86,7 @@ td.us-id{border-left:4px solid var(--c,transparent)}
     </select></div>
   {% if filtre_sprint or filtre_statut or filtre_release or filtre_nature or filtre_dev or filtre_feature %}<a class="btn btn-ghost btn-sm" href="{{ url_for('backlog') }}">Effacer les filtres</a>{% endif %}
 </form>
+</details>
 {% endif %}
 
 {% if not blocs %}
@@ -118,9 +131,9 @@ td.us-id{border-left:4px solid var(--c,transparent)}
     <thead><tr><th>N°</th><th>Story</th><th>Porteurs</th><th class="c">Statut</th><th class="c">Estimation</th><th class="c">Tâches</th><th class="c" title="Definition of Ready : critères cochés / total">DoR</th><th class="c" title="Définition du Fini : critères cochés / total">DoD</th><th class="c">Priorité</th><th class="c">Sprint</th></tr></thead>
     <tbody>
     {% for s in b.stories %}{% set d = s.dod_etat(dod_commune) %}
-      {% set NS = nat(s.nature) %}<tr style="--c:{{ NS.couleur }}">
+      {% set NS = nat(s.nature) %}<tr class="ligne-story" data-href="{{ url_for('story', sid=s.id) }}" title="Ouvrir la fiche de la story" style="--c:{{ NS.couleur }}">
         <td class="us-id m-hide">{{ s.numero() }}</td>
-        <td class="card-head"><span class="nat-badge" style="--c:{{ NS.couleur }}">{{ NS.nom }}</span> <a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a>{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% if s.parent %}<span class="ref-parent" title="Rattachée à {{ s.parent.titre }}">&#8627; {{ s.parent.numero() }}</span>{% endif %}{% if s.auteur and s.auteur != 'po' %}<span class="ref-parent" title="Story proposée par un membre de l'équipe">proposée par {{ court(s.auteur) }}</span>{% endif %}</td>
+        <td class="card-head"><span class="nat-badge" style="--c:{{ NS.couleur }}">{{ NS.nom }}</span> <a class="story-link" href="{{ url_for('story', sid=s.id) }}">{{ s.titre }}</a> <a class="ouvrir-fiche" href="{{ url_for('story', sid=s.id) }}">{{ 'Modifier' if (est_po and not s.proposee_par_equipe()) or (s.auteur == session.username) else 'Ouvrir' }} &rsaquo;</a>{% if s.andon %} <span class="andon" title="Andon : {{ s.andon_motif or 'problème signalé' }}"></span>{% endif %}{% if s.parent %}<span class="ref-parent" title="Rattachée à {{ s.parent.titre }}">&#8627; {{ s.parent.numero() }}</span>{% endif %}{% if s.auteur and s.auteur != 'po' %}<span class="ref-parent" title="Story proposée par un membre de l'équipe">proposée par {{ court(s.auteur) }}</span>{% endif %}</td>
         <td class="small">{{ porteurs(s, '<span class="muted">—</span>') }}</td>
         <td class="c"><span class="badge st-{{ s.statut|replace(' ','-') }}">{{ s.statut }}</span></td>
         <td class="c mono">{{ s.points|fmt if s.points else '—' }}{% if s.points %} <span class="muted small">pts</span>{% endif %}</td>
@@ -176,5 +189,9 @@ td.us-id{border-left:4px solid var(--c,transparent)}
 (function(){ var sel=document.getElementById('nf-release'), aide=document.getElementById('nf-aide'); if(!sel) return;
   function maj(){ var o=sel.options[sel.selectedIndex]; aide.textContent=o?o.dataset.aide:''; }
   sel.addEventListener('change',maj); maj(); })();
+// Toute la ligne (carte sur telephone) ouvre la fiche de la story
+document.querySelectorAll('tr.ligne-story').forEach(function(tr){
+  tr.addEventListener('click',function(e){ if(e.target.closest('a,button,select,input')) return; location.href=tr.dataset.href; });
+});
 </script>
 {% endblock %}
