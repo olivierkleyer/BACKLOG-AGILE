@@ -112,7 +112,8 @@
     {% elif r.phase == 1 %}<b>Révélation</b> : tous les post-its sont visibles. Lisez-les ensemble, ajoutez ceux qui manquent, supprimez les doublons.
     {% elif r.phase == 2 %}<b>Vote</b> : chacun dispose de {{ VOTES }} votes à répartir sur les sujets les plus importants. Il vous reste <b id="restants">{{ VOTES - mes_votes }}</b> vote(s).
     {% elif r.phase == 3 %}<b>Actions</b> : transformez les sujets les plus votés en actions d'amélioration, avec un porteur, pour le sprint suivant. Donnez ensuite votre ROTI.
-    {% else %}<b>Rétrospective terminée.</b> Les actions apparaissent sur le Kanban du sprint visé et seront passées en revue à la prochaine rétro.{% endif %}
+    {% else %}<b>Rétrospective terminée.</b> Les actions apparaissent sur le Kanban du sprint visé et seront passées en revue à la prochaine rétro.
+    <form method="post" action="{{ url_for('retro_rouvrir', n=n) }}" style="display:inline;margin-left:6px"><button class="btn btn-ghost btn-sm" title="Revenir à la collecte pour ajouter des post-its ; rien n'est perdu">Rouvrir la rétrospective pour la compléter</button></form>{% endif %}
     {% if est_po and r.phase < 2 %}<form method="post" action="{{ url_for('retro_anonyme', n=n) }}" style="display:inline"><button class="btn-link" title="Afficher ou masquer les auteurs">{{ 'Post-its anonymes · afficher les auteurs' if r.anonyme else 'Auteurs visibles · rendre anonyme' }}</button></form>{% endif %}
   </p>
 </div>

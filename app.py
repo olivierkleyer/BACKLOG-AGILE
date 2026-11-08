@@ -564,7 +564,7 @@ def parcours(p):
          'lien': url_for('retro'), 'bouton': 'Ouvrir la rétrospective'},
     ]
     courante = next((e for e in etapes if not e['ok']), None)
-    return {'etapes': etapes, 'courante': courante}
+    return {'etapes': etapes, 'courante': courante, 'premiere_feature': premiere}
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -1817,6 +1817,18 @@ def retro_phase(n):
     r = retro_ou_404(n)
     r.phase = min(max(r.phase + (1 if request.form.get('sens') == '+' else -1), 0), len(PHASES_RETRO))
     db.session.commit()
+    return redirect(url_for('retro', sprint=n))
+
+@app.route('/retro/<int:n>/rouvrir', methods=['POST'])
+@connecte
+def retro_rouvrir(n):
+    """Une retro terminee peut etre rouverte par tous (PO ou equipe) pour la completer :
+    retour a la Collecte ; post-its, votes et actions deja saisis sont conserves."""
+    r = retro_ou_404(n)
+    if r.phase >= len(PHASES_RETRO):
+        r.phase = 0; db.session.commit()
+        flash("Rétrospective rouverte par {} : ajoutez vos post-its. Le PO la fera ensuite avancer jusqu'à « Terminer ». Rien de ce qui avait été saisi n'est perdu.".format(
+            session.get('username', '')), 'success')
     return redirect(url_for('retro', sprint=n))
 
 @app.route('/retro/<int:n>/anonyme', methods=['POST'])

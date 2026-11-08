@@ -110,6 +110,7 @@ table.data-table tr:hover td{background:var(--blue-ll)}
 .toasts .alert{margin:0;box-shadow:0 8px 24px rgba(15,23,42,.18);pointer-events:auto;transition:opacity .4s}
 .pcompte{font-family:'DM Mono',monospace;font-size:10.5px;font-weight:700;background:white;border-radius:99px;padding:1px 6px;margin-left:2px}
 .pcond{font-size:12px;color:var(--blue);margin-top:4px;font-weight:600}
+.astuce-dev{background:var(--blue-ll);border:1px solid var(--blue-light);border-radius:var(--radius);padding:8px 14px;margin-bottom:16px;font-size:13px}
 .parcours-aide{font-size:11px;color:var(--gray-500);margin:-4px 0 10px}
 .mobile-title small{font-weight:500;opacity:.6;margin-left:6px}
 .mobile-title{min-width:0;display:flex;flex-direction:column;gap:1px}
@@ -269,10 +270,13 @@ input:disabled,select:disabled,textarea:disabled{background:var(--gray-50);color
         </div>
         <p class="parcours-aide">Cliquez sur une étape pour y aller ; elle passe au vert quand elle est réalisée.</p>
         <div class="parcours-next">
-          <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}</div>
+          <div><span class="who">{{ 'PO' if c.po else 'PO + équipe' }}</span>{{ c.action }}{% if c.po and not est_po and c.n != 4 %} <span class="muted">(réservé au PO : attendez qu'il l'ait fait)</span>{% endif %}</div>
           
         </div>
       </div>
+      {% endif %}
+      {% if not est_po and parcours.premiere_feature and request.endpoint != 'login' %}
+      <div class="astuce-dev no-print">Une idée de story ? Proposez-la dans le <a href="{{ url_for('backlog') }}#feature-{{ parcours.premiere_feature.id }}">Product backlog</a>, sous la feature concernée (bloc « + Proposer une story »).</div>
       {% endif %}
       {% block content %}{% endblock %}
     </div>
