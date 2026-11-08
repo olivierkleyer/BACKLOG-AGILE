@@ -350,5 +350,26 @@ document.getElementById('burger-btn').onclick=function(){sb.classList.toggle('op
 ov.onclick=function(){sb.classList.remove('open');ov.classList.remove('open');};
 </script>
 {% block scripts %}{% endblock %}
+{% if request.endpoint in ('backlog', 'sprints') %}
+<script>
+// Vue partagee : la page se recharge seule quand un autre participant modifie le backlog
+// (sauf pendant une saisie ou un formulaire de modification ouvert)
+(function(){
+  var V = {{ etat_backlog()|tojson }};
+  setInterval(function(){
+    if (document.hidden) return;
+    var a = document.activeElement;
+    if (a && /^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName) && a.type !== 'checkbox' && a.type !== 'radio' && a.type !== 'submit') return;
+    if (document.querySelector('.feat-edit.open')) return;
+    var sale = [].some.call(document.querySelectorAll('input[type=text], textarea'), function(x){ return x.value !== x.defaultValue; });
+    if (sale) return;
+    fetch('/api/backlog/version').then(function(r){ return r.json(); }).then(function(j){
+      if (j.v !== V) { try { sessionStorage.setItem('scrollY', window.scrollY); } catch(e) {} location.reload(); }
+    }).catch(function(){});
+  }, 4000);
+  try { var y = sessionStorage.getItem('scrollY'); if (y !== null) { sessionStorage.removeItem('scrollY'); if (!location.hash) window.scrollTo(0, +y); } } catch(e) {}
+})();
+</script>
+{% endif %}
 </body>
 </html>

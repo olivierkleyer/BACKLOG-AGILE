@@ -496,7 +496,7 @@ def contexte():
     nats = natures(p)
     return {'projet': p, 'est_po': est_po(), 'STATUTS': STATUTS, 'PRIORITES': PRIORITES,
             'nb_non_lus': messages_non_lus(),
-            'parcours': parcours(p), 'NATURES': nats, 'PERSONNES': personnes(),
+            'parcours': parcours(p), 'NATURES': nats, 'etat_backlog': etat_backlog, 'PERSONNES': personnes(),
             'court': lambda u: next((x['court'] for x in personnes() if x['id'] == u), u),
             'nat': lambda code: next((n for n in nats if n['code'] == code), nature_info(p, code))}
 
@@ -1174,6 +1174,17 @@ def api_kanban(n):
     """Etat du sprint pour le rafraichissement automatique du tableau"""
     return jsonify({'statuts': {str(s.id): s.statut for s in Story.query.filter_by(sprint=n).all()},
                     'jour': jour_du_sprint(n)})
+
+def etat_backlog():
+    """Empreinte du backlog partage (releases, features, stories, taches, sprints, produit) :
+    change des qu'un participant modifie quelque chose -> les autres ecrans se rechargent."""
+    return version_de([[ligne_vers_dict(x) for x in m.query.order_by(m.id).all()]
+                       for m in (Projet, Sprint, Release, Feature, Story, Tache)])
+
+@app.route('/api/backlog/version')
+@connecte
+def api_backlog_version():
+    return jsonify({'v': etat_backlog()})
 
 @app.route('/sprint/<int:n>/jour', methods=['POST'])
 @po_requis
